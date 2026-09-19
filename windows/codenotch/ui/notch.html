@@ -9,8 +9,13 @@
   body{font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink,#fff)}
   #root{position:relative;width:100%;height:100%;
     --pill:#000;--card:#0a0a0a;--ink:#fff;--track:#303030;--stroke:#2e2e2e;--muted:#808080}
-  #root.surface-darkGlass #pill,#root.surface-darkGlass #card,
-  #root.surface-glass #pill,#root.surface-glass #card,#root.surface-system #pill,#root.surface-system #card{
+  #root.surface-darkGlass #pill,#root.surface-darkGlass #card,#root.surface-darkGlass #tail,#root.surface-darkGlass .h-disc,
+  #root.surface-glass #pill,#root.surface-glass #card,#root.surface-glass #tail,#root.surface-glass .h-disc,
+  #root.surface-system #pill,#root.surface-system #card,#root.surface-system #tail,#root.surface-system .h-disc{
+    backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15)}
+  #root.surface-darkGlass #pill::before,#root.surface-darkGlass #pill::after,
+  #root.surface-glass #pill::before,#root.surface-glass #pill::after,
+  #root.surface-system #pill::before,#root.surface-system #pill::after{
     backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15)}
   #root.surface-darkGlass{--pill:rgba(0,0,0,.52);--card:rgba(10,10,10,.64)}
   #root.surface-glass,#root.surface-system{--pill:rgba(0,0,0,.52);--card:rgba(10,10,10,.64)}
@@ -39,10 +44,14 @@
   #pill::before{
     top:calc(-1 * var(--fillet)); /* covers the 1 px stroke along the pill's top edge so there is no seam */
     background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
+    -webkit-mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
+    mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
   }
   #pill::after{
     bottom:calc(-1 * var(--fillet));
     background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
+    -webkit-mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
+    mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
   }
   .cell{display:flex;flex-direction:column;align-items:center;gap:6px;animation:cell-in .34s cubic-bezier(.22,1,.36,1)}
   @keyframes cell-in{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
@@ -126,14 +135,14 @@
      flat edges, how far down or up the card clears a pill whose thickness follows its contents.
 
      The fillets follow one rule on every edge: the radial gradient is centred on the corner of the
-     R×R square *diagonally opposite* the corner where the pill meets the screen, so what stays black
-     is the concave arc between the two. */
+     R×R square *diagonally opposite* the corner where the pill meets the screen, so the remaining
+     arc uses the same fill as the pill. */
 
   /* Left: the right-hand layout mirrored. */
-  body[data-edge="left"] #pill{right:auto;left:0;border-radius:0 20px 20px 0;border-right:1px solid #2e2e2e;border-left:none}
+  body[data-edge="left"] #pill{right:auto;left:0;border-radius:0 20px 20px 0;border-right:1px solid var(--stroke);border-left:none}
   body[data-edge="left"] #pill::before,body[data-edge="left"] #pill::after{right:auto;left:0}
-  body[data-edge="left"] #pill::before{background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="left"] #pill::after{background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="left"] #pill::before{background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="left"] #pill::after{background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
   body[data-edge="left"] #card{left:100px;right:10px;margin-left:0;margin-right:auto}
   body[data-edge="left"] #tail{right:auto;left:69px;clip-path:path('M32 0C32 9 13.44 13.68 0 18C13.44 22.32 32 27 32 36Z')}
 
@@ -146,11 +155,11 @@
   body[data-edge="top"] #pill::before,body[data-edge="top"] #pill::after,
   body[data-edge="bottom"] #pill::before,body[data-edge="bottom"] #pill::after{right:auto;top:auto;bottom:auto}
   body[data-edge="top"] #pill{top:0;border-radius:0 0 20px 20px;border-top:none}
-  body[data-edge="top"] #pill::before{top:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="top"] #pill::after{top:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="top"] #pill::before{top:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="top"] #pill::after{top:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
   body[data-edge="bottom"] #pill{bottom:0;border-radius:20px 20px 0 0;border-bottom:none}
-  body[data-edge="bottom"] #pill::before{bottom:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="bottom"] #pill::after{bottom:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="bottom"] #pill::before{bottom:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="bottom"] #pill::after{bottom:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
   /* A fixed width here, not the fluid one the upright edges use: `placeCard` measures the card to
      centre it, and a shrink-to-fit width would change as it moves. 246 is the upstream cap either way. */
   body[data-edge="top"] #card,body[data-edge="bottom"] #card{
@@ -171,14 +180,16 @@
   .handle.hover{cursor:pointer}
   .handle > *{position:absolute;left:50%;top:50%;pointer-events:none;transition:opacity .2s,transform .36s cubic-bezier(.34,1.3,.64,1)}
   .h-rest{width:72px;height:72px;margin:-36px 0 0 -36px;overflow:visible;transform:rotate(var(--arc)) scale(1)}
-  .h-disc{width:46.6px;height:46.6px;margin:-23.3px 0 0 -23.3px;border-radius:50%;background:#000;border:1px solid #2e2e2e;opacity:0;transform:scale(1.1)}
-  .h-glyph{width:21px;height:21px;margin:-10.5px 0 0 -10.5px;fill:#e8e8ea;opacity:0;
+  .h-rest .h-stroke{stroke:var(--stroke)}
+  .h-rest .h-fill{stroke:var(--pill)}
+  .h-disc{width:46.6px;height:46.6px;margin:-23.3px 0 0 -23.3px;border-radius:50%;background:var(--pill);border:1px solid var(--stroke);opacity:0;transform:scale(1.1)}
+  .h-glyph{width:21px;height:21px;margin:-10.5px 0 0 -10.5px;fill:var(--ink);opacity:0;
     transform:rotate(calc(var(--spins,0) * 360deg - 60deg)) scale(.5);transition:opacity .2s,transform .55s cubic-bezier(.34,1.2,.64,1)}
   .handle.hover .h-rest{opacity:0;transform:rotate(var(--arc)) scale(.86)}
   .handle.hover .h-disc{opacity:1;transform:scale(1)}
   .handle.hover .h-glyph{opacity:1;transform:rotate(calc(var(--spins,0) * 360deg)) scale(1)}
   /* Carrying: the disc goes dashed and the hand stops turning — it is being held now, not offered */
-  #move.armed .h-disc{border:2px dashed #e8e8ea;background:rgba(0,0,0,.72)}
+  #move.armed .h-disc{border:2px dashed var(--ink);background:var(--pill)}
   /* The quarter that faces the fillet: up and outward past the far end on the right, and the same two
      directions mirrored along the stack at the near end */
   body[data-edge="left"] #orb,body[data-edge="top"] #orb{--arc:180deg}
@@ -195,8 +206,8 @@
   <div id="tail"></div>
   <div id="move" class="handle">
     <svg class="h-rest" viewBox="-36 -36 72 72" aria-hidden="true">
-      <circle r="28.5" fill="none" stroke="#2e2e2e" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
-      <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
+      <circle class="h-stroke" r="28.5" fill="none" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
+      <circle class="h-fill" r="28.5" fill="none" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
     <!-- A hand, as on the Mac: the gesture is a carry, not a nudge, which is what arrows would say -->
@@ -206,8 +217,8 @@
   </div>
   <div id="orb" class="handle">
     <svg class="h-rest" viewBox="-36 -36 72 72" aria-hidden="true">
-      <circle r="28.5" fill="none" stroke="#2e2e2e" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
-      <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
+      <circle class="h-stroke" r="28.5" fill="none" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
+      <circle class="h-fill" r="28.5" fill="none" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
     <svg class="h-glyph" viewBox="0 0 12 12" aria-hidden="true"><path fill-rule="evenodd" d="M5.1.6h1.8l.3 1.5 1.1.5 1.3-.8 1.3 1.3-.8 1.3.5 1.1 1.5.3v1.8l-1.5.3-.5 1.1.8 1.3-1.3 1.3-1.3-.8-1.1.5-.3 1.5H5.1l-.3-1.5-1.1-.5-1.3.8-1.3-1.3.8-1.3-.5-1.1L.6 6.9V5.1l1.5-.3.5-1.1-.8-1.3 1.3-1.3 1.3.8 1.1-.5zM6 4.1a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/></svg>
