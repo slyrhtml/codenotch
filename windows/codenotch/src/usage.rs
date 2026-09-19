@@ -121,6 +121,11 @@ impl Credential {
     }
 }
 
+/// Whether Claude Code has left a session we can borrow.
+pub fn has_credential() -> bool {
+    read_credentials().is_some()
+}
+
 /// Reads Claude Code's OAuth credential.
 fn read_credentials() -> Option<Credential> {
     let home = dirs::home_dir()?;
@@ -138,6 +143,38 @@ fn read_credentials() -> Option<Credential> {
             return Some(Credential { token: tok.to_string(), expires_at });
         }
     }
+    credential_from_json(&credman_text("Claude Code-credentials").or_else(|| credman_text("Claude Code"))?)
+}
+
+fn credential_from_json(text: &str) -> Option<Credential> {
+    let v: serde_json::Value = serde_json::from_str(text).ok()?;
+    let oauth = v.get("claudeAiOauth").unwrap_or(&v);
+    let tok = oauth.get("accessToken").and_then(|x| x.as_str())?;
+    let expires_at = oauth.get("expiresAt").and_then(|x| x.as_f64()).map(|ms| ms as u64);
+    Some(Credential { token: tok.to_string(), expires_at })
+}
+
+#[cfg(windows)]
+fn credman_text(target: &str) -> Option<String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Security::Credentials::{CredFree, CredReadW, CREDENTIALW, CRED_TYPE_GENERIC};
+    let wide: Vec<u16> = target.encode_utf16().chain(Some(0)).collect();
+    let mut cred: *mut CREDENTIALW = std::ptr::null_mut();
+    unsafe {
+        CredReadW(PCWSTR(wide.as_ptr()), CRED_TYPE_GENERIC, 0, &mut cred).ok()?;
+        if cred.is_null() {
+            return None;
+        }
+        let c = &*cred;
+        let bytes = std::slice::from_raw_parts(c.CredentialBlob, c.CredentialBlobSize as usize);
+        let text = String::from_utf8_lossy(bytes).into_owned();
+        CredFree(cred.cast());
+        Some(text)
+    }
+}
+
+#[cfg(not(windows))]
+fn credman_text(_target: &str) -> Option<String> {
     None
 }
 
@@ -414,6 +451,7 @@ fn set_and_broadcast(app: &AppHandle, mutate: impl FnOnce(&mut UsageSnapshot)) {
     };
     persist(&snap);
     let _ = app.emit("usage", &snap);
+    crate::accounts::emit(app);
 }
 
 pub fn start(app: AppHandle) {

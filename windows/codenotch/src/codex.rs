@@ -568,6 +568,7 @@ fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
     *st.codex.lock().unwrap() = snap.clone();
     persist(&snap);
     let _ = app.emit("codex", &snap);
+    crate::accounts::emit(app);
 }
 
 pub fn start(app: AppHandle) {

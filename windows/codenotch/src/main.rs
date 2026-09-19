@@ -34,6 +34,7 @@ mod diag;
 mod dropzones;
 mod watcher;
 mod settings_window;
+mod accounts;
 
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
@@ -1176,26 +1177,14 @@ pub(crate) fn ring_pct(app: &AppHandle, provider: &str) -> Option<u32> {
         .map(|w| (w.used * 100.0).round().clamp(0.0, 100.0) as u32)
 }
 
-/// One provider and its ring's current number, for the settings window's picker.
-#[derive(serde::Serialize)]
-struct TrayOption {
-    id: String,
-    label: String,
-    status: String,
-    used: Option<u32>,
+#[tauri::command]
+fn get_tray_options(app: AppHandle) -> Vec<accounts::AccountRow> {
+    accounts::rows(&app)
 }
 
 #[tauri::command]
-fn get_tray_options(app: AppHandle) -> Vec<TrayOption> {
-    TRAY_PROVIDER_IDS
-        .iter()
-        .map(|id| TrayOption {
-            id: (*id).to_string(),
-            label: provider_label(id).to_string(),
-            status: snapshot_of(&app, id).status,
-            used: ring_pct(&app, id),
-        })
-        .collect()
+fn sign_in_provider(app: AppHandle, id: String) -> bool {
+    accounts::sign_in(&app, &id)
 }
 
 /// Antigravity's "Notch reads" and "Model data", as the Mac app has them.
@@ -1581,6 +1570,7 @@ fn start_menu_updater(app: AppHandle) {
             }
             if changed {
                 last = Some(values);
+                crate::accounts::emit(&app);
             }
             ticked = std::time::Instant::now();
             tray::refresh_menu(&app);
@@ -1734,6 +1724,7 @@ fn main() {
             get_weekly_ring,
             set_weekly_ring,
             get_tray_options,
+            sign_in_provider,
             get_notch_slots,
             set_notch_slots,
             get_appearance,

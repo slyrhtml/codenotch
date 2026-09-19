@@ -313,6 +313,7 @@ fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
     *st.grok.lock().unwrap() = snap.clone();
     persist(&snap);
     let _ = app.emit("grok", &snap);
+    crate::accounts::emit(app);
 }
 
 fn sleep_interruptible(secs: u64) {

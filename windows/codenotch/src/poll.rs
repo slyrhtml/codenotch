@@ -49,6 +49,7 @@ pub fn broadcast(app: &AppHandle, id: &str, snap: UsageSnapshot) {
     }
     persist(id, &snap);
     let _ = app.emit(id, &snap);
+    crate::accounts::emit(&app);
 }
 
 pub fn start(
@@ -75,7 +76,7 @@ pub fn start(
                 UsageSnapshot { status: "absent".into(), ..Default::default() },
             );
             loop {
-                sleep_interruptible(refresh, 600);
+                sleep_interruptible(refresh, 15);
                 if present() {
                     break;
                 }

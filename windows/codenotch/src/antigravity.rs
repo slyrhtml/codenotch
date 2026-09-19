@@ -655,6 +655,7 @@ fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
     *st.antigravity.lock().unwrap() = snap.clone();
     persist(&snap);
     let _ = app.emit("antigravity", &snap);
+    crate::accounts::emit(app);
 }
 
 fn sleep_interruptible(secs: u64) {

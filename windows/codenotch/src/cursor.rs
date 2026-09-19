@@ -76,6 +76,15 @@ fn persist(s: &UsageSnapshot) {
 
 pub fn present() -> bool {
     store_url().map(|p| p.is_file()).unwrap_or(false)
+        || dirs::home_dir().map(|h| h.join(".cursor").join("cli-config.json").is_file()).unwrap_or(false)
+}
+
+pub(crate) fn open_item_db(path: &std::path::Path) -> Option<rusqlite::Connection> {
+    open_ro(path)
+}
+
+pub(crate) fn item_value(conn: &rusqlite::Connection, key: &str) -> Option<String> {
+    item(conn, key)
 }
 
 // ---------------- SQLite, read only ----------------
@@ -119,12 +128,56 @@ struct Creds {
 
 /// Re-read every time: the editor rotates the token, and holding on to an old value signs us out
 fn read_credentials() -> Option<Creds> {
-    let path = store_url()?;
-    let conn = open_ro(&path)?;
-    let token = item(&conn, "cursorAuth/accessToken")?;
-    let auth_id = item(&conn, "cursorAuth/stripeMembershipAuthId")?;
-    let plan = item(&conn, "cursorAuth/stripeMembershipType");
-    Some(Creds { cookie: format!("WorkosCursorSessionToken={auth_id}::{token}"), plan })
+    if let Some(path) = store_url() {
+        if let Some(conn) = open_ro(&path) {
+            if let (Some(token), Some(auth_id)) = (
+                item(&conn, "cursorAuth/accessToken"),
+                item(&conn, "cursorAuth/stripeMembershipAuthId"),
+            ) {
+                let plan = item(&conn, "cursorAuth/stripeMembershipType");
+                return Some(Creds { cookie: format!("WorkosCursorSessionToken={auth_id}::{token}"), plan });
+            }
+        }
+    }
+    agent_credentials()
+}
+
+/// `cursor-agent login` writes identity in `~/.cursor/cli-config.json` and the JWT
+/// in Windows Credential Manager, the same pair the Mac reads from the keychain.
+fn agent_credentials() -> Option<Creds> {
+    let cfg = dirs::home_dir()?.join(".cursor").join("cli-config.json");
+    let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(cfg).ok()?).ok()?;
+    let info = v.get("authInfo").unwrap_or(&v);
+    let auth_id = info.get("authId").and_then(|x| x.as_str()).filter(|s| !s.is_empty())?;
+    let token = credman_text("cursor-access-token")?;
+    if token.is_empty() {
+        return None;
+    }
+    Some(Creds { cookie: format!("WorkosCursorSessionToken={auth_id}::{token}"), plan: None })
+}
+
+#[cfg(windows)]
+fn credman_text(target: &str) -> Option<String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Security::Credentials::{CredFree, CredReadW, CREDENTIALW, CRED_TYPE_GENERIC};
+    let wide: Vec<u16> = target.encode_utf16().chain(Some(0)).collect();
+    let mut cred: *mut CREDENTIALW = std::ptr::null_mut();
+    unsafe {
+        CredReadW(PCWSTR(wide.as_ptr()), CRED_TYPE_GENERIC, 0, &mut cred).ok()?;
+        if cred.is_null() {
+            return None;
+        }
+        let c = &*cred;
+        let bytes = std::slice::from_raw_parts(c.CredentialBlob, c.CredentialBlobSize as usize);
+        let text = String::from_utf8_lossy(bytes).trim().to_string();
+        CredFree(cred.cast());
+        (!text.is_empty()).then_some(text)
+    }
+}
+
+#[cfg(not(windows))]
+fn credman_text(_target: &str) -> Option<String> {
+    None
 }
 
 /// For doctor: contains no secret values
@@ -263,6 +316,7 @@ fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
     *st.cursor.lock().unwrap() = snap.clone();
     persist(&snap);
     let _ = app.emit("cursor", &snap);
+    crate::accounts::emit(app);
 }
 
 fn sleep_interruptible(secs: u64) {

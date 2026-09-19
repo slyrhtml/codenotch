@@ -89,6 +89,8 @@
   .acct.off .glyph{opacity:.5}
   .acct.flip{opacity:.45;transform:translateY(-3px)}
   .acct-detail{margin:4px 0 0 26px;font-size:12px;color:var(--text2)}
+  .acct-why{margin:4px 0 0 26px;font-size:12px;color:#f0a020}
+  .acct-actions{margin:6px 0 0 26px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .acct-sub{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 0 26px;font-size:13px}
   .handle{width:12px;height:18px;flex:none;opacity:.35;cursor:grab;background:
     radial-gradient(circle,var(--text2) 1.1px,transparent 1.2px) 0 0/6px 6px}
@@ -159,6 +161,7 @@
     <div id="body">
 
       <section class="pane" id="pane-accounts" role="tabpanel" aria-labelledby="tab-accounts" hidden>
+        <div class="item cap">Most readings are borrowed from a tool that already holds the account. Switching a row on opens that tool’s sign-in when nothing has been found yet. Switching it off stops the notch reading it — you stay signed in to the tool itself.</div>
         <div class="sec">Connected</div>
         <div class="group" id="acc-on" data-dynamic></div>
         <div id="acc-off-wrap" hidden>
@@ -875,9 +878,9 @@ function isPlaceable(p){
   return !!(s && s !== '');
 }
 function providerList(){
-  // Every known tool gets a switch. Empty slots still mean "all on"; turning one off moves it
-  // to Not connected and tells the notch to drop that ring.
-  return allProviders();
+  // Same as the Mac: hide local runtimes that were never installed; everyone else stays
+  // listed so a missing sign-in can still be opened from here.
+  return allProviders().filter(p => p.visible !== false);
 }
 function statusText(p){
   const words = STATUS_TEXT[uiLang] || STATUS_TEXT.en;
@@ -953,8 +956,19 @@ function agSelect(key, choices, value){
     + choices.map(([v, t]) => '<option value="' + v + '"' + (v === value ? ' selected' : '') + '>' + esc(ui(t, t)) + '</option>').join('')
     + '</select>';
 }
+function signInOf(p){
+  return p.sign_in || p.signIn || {};
+}
+function accountOf(p){
+  return p.account || null;
+}
 function accountBlock(p, isOn, locked){
   const st = statusText(p);
+  const acc = accountOf(p);
+  const route = signInOf(p);
+  const why = route.explanation || '';
+  const canOpen = !!(route.can_open || route.canOpen);
+  const action = route.title;
   let h = '<div class="acct' + (isOn ? '' : ' off') + '" data-acct="' + esc(p.id) + '">'
     + '<div class="acct-line" data-np="' + esc(p.id) + '">'
     + '<span class="acct-name">'
@@ -963,7 +977,23 @@ function accountBlock(p, isOn, locked){
     + '<button type="button" class="switch' + (isOn ? ' on' : '') + (locked ? ' locked' : '') + '" role="switch" aria-checked="' + isOn + '"'
     + (locked ? ' disabled' : '')
     + ' data-np="' + esc(p.id) + '" aria-label="' + esc(p.label || p.id) + '"></button></div>';
-  if(st) h += '<div class="acct-detail">' + esc(st) + '</div>';
+  if(!isOn){
+    h += '<div class="acct-detail">' + esc(ui('Signed out — nothing is read, and no readings are kept.', 'Signed out — nothing is read, and no readings are kept.')) + '</div>';
+  } else if(acc && (acc.summary || acc.label)){
+    h += '<div class="acct-detail">' + esc(acc.summary || [acc.label, acc.plan, acc.source && ('via ' + acc.source)].filter(Boolean).join(' · ')) + '</div>';
+    if(canOpen){
+      h += '<div class="acct-actions"><button type="button" class="link" data-signin="' + esc(p.id) + '">' + esc(ui('Switch…', 'Switch…')) + '</button></div>';
+    }
+    if(route.switch_hint || route.switchHint){
+      h += '<div class="acct-detail">' + esc(route.switch_hint || route.switchHint) + '</div>';
+    }
+  } else {
+    if(why) h += '<div class="acct-why">' + esc(ui(why, why)) + '</div>';
+    if(action && canOpen){
+      h += '<div class="acct-actions"><button type="button" class="btn" data-signin="' + esc(p.id) + '">' + esc(ui(action, action)) + '</button></div>';
+    }
+    if(st) h += '<div class="acct-detail">' + esc(st) + '</div>';
+  }
   if(p.id === 'gemini' && isOn){
     h += '<div class="acct-sub"><span>' + esc(ui('Notch reads', 'Notch reads')) + '</span>' + agSelect('limit', AG_LIMITS, agPrefs.limit) + '</div>'
       + '<div class="acct-sub"><span>' + esc(ui('Model data', 'Model data')) + '</span>' + agSelect('model', AG_MODELS, agPrefs.model) + '</div>';
@@ -1027,12 +1057,31 @@ function toggleNotch(id){
   }
   on.sort((a, b) => ids.indexOf(a.provider) - ids.indexOf(b.provider));
   saveNotch(on, id);
+  if(at < 0){
+    invoke('sign_in_provider', { id }).then(opened => {
+      refreshOptions();
+      if(opened) toast(ui('Opened the sign-in for this account', 'Opened the sign-in for this account'));
+    }).catch(e => strip('sign_in_provider failed: ' + errText(e)));
+  }
 }
 const accountsPane = document.getElementById('pane-accounts');
 accountsPane.addEventListener('click', e => {
   if(e.target.closest('[data-drag]')) return;
   if(e.target.closest('[data-remote="hooks"]')){ hooks.toggle(); return; }
   if(e.target.closest('[data-ag]')) return;
+  const sign = e.target.closest('[data-signin]');
+  if(sign){
+    const id = sign.getAttribute('data-signin');
+    invoke('sign_in_provider', { id })
+      .then(opened => {
+        refreshOptions();
+        toast(opened
+          ? ui('Opened the sign-in for this account', 'Opened the sign-in for this account')
+          : ui('Sign in with the tool that owns this account', 'Sign in with the tool that owns this account'));
+      })
+      .catch(err => strip('sign_in_provider failed: ' + errText(err)));
+    return;
+  }
   const np = e.target.closest('[data-np]');
   if(np){ toggleNotch(np.getAttribute('data-np')); }
 });
@@ -1485,6 +1534,13 @@ function boot(){
   call('get_antigravity_prefs', undefined, null).then(v => { if(v && typeof v === 'object'){ agPrefs = v; renderAccounts(); } });
   call('get_glyphs', undefined, null).then(g => { if(g && typeof g === 'object'){ glyphs = g; renderAccounts(); } });
   try { window.__TAURI__.event.listen('glyphs', e => { if(e.payload){ glyphs = e.payload; renderAccounts(); } }); } catch(e) { /* the letters stay */ }
+  try {
+    window.__TAURI__.event.listen('accounts', e => {
+      if(!Array.isArray(e.payload)) return;
+      options = e.payload.filter(o => o && typeof o.id === 'string');
+      renderAccounts();
+    });
+  } catch(e) { /* the next focus refresh still picks them up */ }
   call('get_scale', undefined, null).then(v => {
     if(typeof v === 'number'){
       notchSize = v;
