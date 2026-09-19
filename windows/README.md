@@ -18,6 +18,16 @@ documented behaviour and the wire formats.
 | **Cursor** | The editor's own session from `state.vscdb` → `cursor.com/api/usage-summary` | Included usage / API usage / on-demand, reset at billing-cycle end. Nothing to sign into: it borrows the editor's session, so there is only ever one account. |
 | **Grok** | The Grok CLI's own session in `~/.grok/auth.json` (read only, never refreshed) → `cli-chat-proxy.grok.com/v1/billing?format=credits`, the endpoint that CLI's own `/usage` asks | The weekly Grok Build allowance, with the account on the hover card. Only a session minted by `auth.x.ai` is used — the file can also hold a customer IdP token meant for that customer's private proxy. A fresh weekly period reads 0 %, not "unmetered". |
 | **Antigravity** | Official `agy` CLI `/usage` print when installed; otherwise the existing local `language_server` bridge, Google Cloud Code API, or transcript model count | Official four quota rows (Gemini & Claude/GPT 5h/weekly) without running the full IDE. When CLI is absent, falls back to legacy local bridge/API. |
+| **GLM** | A Z.ai Coding Plan key already held by Claude Code, ZCode or OpenCode → `GET {console}/api/monitor/usage/quota/limit` | Session, weekly and MCP windows. The Start Plan is detected but has nothing metered. |
+| **OpenCode** | `~/.local/share/opencode/auth.json` → `opencode-go` → `GET https://opencode.ai/zen/go/v1/usage` | Rolling 5h, weekly and monthly Go-plan windows. |
+| **Command Code** | `COMMAND_CODE_API_KEY` or `~/.commandcode/auth.json` → the desktop `/alpha` billing endpoints | Monthly spend over cap, plus 5h/weekly when the account has them. |
+| **GitHub Copilot** | `GH_TOKEN` / `GITHUB_TOKEN`, `~/.config/gh/hosts.yml`, or `gh auth token` → `GET https://api.github.com/copilot_internal/user` | Premium / chat / completions quotas. |
+| **Kimi** | `{KIMI_CODE_HOME or ~/.kimi-code}/credentials/kimi-code.json` → `GET https://api.kimi.com/coding/v1/usages` | 5-hour rate window and weekly quota. |
+| **Kiro** | `kiro-cli chat --no-interactive /usage` (PATH, `~/.local/bin`, or `KIRO_CLI_PATH`) | Monthly credits, parsed from the CLI card. |
+| **Ollama** | `OLLAMA_API_KEY` or Settings → `GET https://ollama.com/api/usage` | Monthly (or legacy session/weekly) cloud allowance. |
+| **Ollama (Local)** | `GET {host}/api/ps` (default `http://127.0.0.1:11434`) | Loaded models. Detected automatically when the server answers. |
+| **LM Studio** | `GET {host}/api/v1/models` (port from `~/.lmstudio/.internal/http-server-config.json`, or Settings) | Loaded language models. Embedding models are left out. |
+| **MiniMax** | `MiniMax_CODING_API_KEY` / Settings → `GET {api}/v1/token_plan/remains` | 5-hour and weekly Coding / Token Plan windows. Region is International or China. |
 
 Providers that are not installed simply do not get a cell.
 

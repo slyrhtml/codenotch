@@ -17,6 +17,16 @@ mod cursor;
 mod grok;
 mod antigravity;
 mod agy_cli;
+mod poll;
+mod glm;
+mod opencode;
+mod commandcode;
+mod copilot;
+mod kimi;
+mod kiro;
+mod ollama;
+mod lmstudio;
+mod minimax;
 mod glyphs;
 mod trayicon;
 mod activity;
@@ -36,7 +46,7 @@ pub const BUILD: &str = "r31";
 pub const NOTCH_H: f64 = 520.0; // 300 clipped the card once it held three window blocks plus the session list; 460 clipped Antigravity's two model groups once the reading was stale and an agent was working
 /// Height of the upright window. Five cells make a 504 px pill; its fillets add 38.7 px at each end
 /// and the settings orb reaches 28.5 px past the far one, so 520 cut both fillets and hid the orb.
-pub const NOTCH_UPRIGHT_H: f64 = 650.0;
+pub const NOTCH_UPRIGHT_H: f64 = 980.0;
 
 pub struct AppState {
     pub store: Mutex<state::Store>,
@@ -48,6 +58,8 @@ pub struct AppState {
     /// Grok Build credits, read from the Grok CLI's own session
     pub grok: Mutex<usage::UsageSnapshot>,
     pub antigravity: Mutex<usage::UsageSnapshot>,
+    /// Optional providers added for Windows parity (GLM, OpenCode, Copilot, …)
+    pub extras: Mutex<std::collections::HashMap<String, usage::UsageSnapshot>>,
     /// Provider glyph cache, collected at launch and again on a tray refresh
     pub glyphs: Mutex<std::collections::HashMap<String, glyphs::Glyph>>,
     /// Working state of the non-Claude providers (Cursor reports it; Codex and Antigravity are inferred from recent writes)
@@ -574,6 +586,16 @@ pub(crate) fn refresh_provider(app: &AppHandle, provider: &str) -> bool {
         "cursor" => cursor::request_refresh(),
         "grok" => grok::request_refresh(),
         "gemini" => antigravity::request_refresh(),
+        "glm" => glm::request_refresh(),
+        "opencode" => opencode::request_refresh(),
+        "commandcode" => commandcode::request_refresh(),
+        "copilot" => copilot::request_refresh(),
+        "kimi" => kimi::request_refresh(),
+        "kiro" => kiro::request_refresh(),
+        "ollama" => ollama::request_refresh(),
+        "ollama-local" => ollama::request_refresh_local(),
+        "lmstudio" => lmstudio::request_refresh(),
+        "minimax" => minimax::request_refresh(),
         _ => return false,
     }
     true
@@ -636,6 +658,55 @@ fn get_grok(state: tauri::State<AppState>) -> usage::UsageSnapshot {
 }
 
 #[tauri::command]
+fn get_provider(app: AppHandle, id: String) -> usage::UsageSnapshot {
+    snapshot_of(&app, &id)
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
+struct ProviderKeys {
+    ollama_api_key: String,
+    ollama_host: String,
+    minimax_api_key: String,
+    minimax_region: String,
+    lmstudio_host: String,
+    lmstudio_token: String,
+}
+
+#[tauri::command]
+fn get_keys(app: AppHandle) -> ProviderKeys {
+    let st = app.state::<AppState>();
+    let c = st.cfg.lock().unwrap();
+    ProviderKeys {
+        ollama_api_key: c.ollama_api_key.clone(),
+        ollama_host: c.ollama_host.clone(),
+        minimax_api_key: c.minimax_api_key.clone(),
+        minimax_region: c.minimax_region.clone(),
+        lmstudio_host: c.lmstudio_host.clone(),
+        lmstudio_token: c.lmstudio_token.clone(),
+    }
+}
+
+#[tauri::command]
+fn set_keys(app: AppHandle, keys: ProviderKeys) -> ProviderKeys {
+    {
+        let st = app.state::<AppState>();
+        let mut c = st.cfg.lock().unwrap();
+        c.ollama_api_key = keys.ollama_api_key.trim().to_string();
+        c.ollama_host = keys.ollama_host.trim().to_string();
+        c.minimax_api_key = keys.minimax_api_key.trim().to_string();
+        c.minimax_region = if keys.minimax_region == "china" { "china" } else { "international" }.into();
+        c.lmstudio_host = keys.lmstudio_host.trim().to_string();
+        c.lmstudio_token = keys.lmstudio_token.trim().to_string();
+        config::save(&c);
+    }
+    ollama::request_refresh();
+    ollama::request_refresh_local();
+    minimax::request_refresh();
+    lmstudio::request_refresh();
+    get_keys(app)
+}
+
+#[tauri::command]
 fn get_cursor(state: tauri::State<AppState>) -> usage::UsageSnapshot {
     state.cursor.lock().unwrap().clone()
 }
@@ -653,6 +724,16 @@ pub(crate) fn provider_page(provider: &str) -> Option<(&'static str, &'static st
         "cursor" => ("https://cursor.com/dashboard", "cursor.com"),
         "grok" => ("https://grok.com/?_s=usage", "grok.com"),
         "gemini" => ("https://antigravity.google", "antigravity.google"),
+        "glm" => ("https://z.ai/manage-apikey/apikey-list", "z.ai"),
+        "opencode" => ("https://opencode.ai", "opencode.ai"),
+        "commandcode" => ("https://commandcode.ai", "commandcode.ai"),
+        "copilot" => ("https://github.com/settings/copilot", "github.com"),
+        "kimi" => ("https://www.kimi.com/code/console", "kimi.com"),
+        "kiro" => ("https://app.kiro.dev/account/usage", "app.kiro.dev"),
+        "ollama" => ("https://ollama.com", "ollama.com"),
+        "ollama-local" => ("http://127.0.0.1:11434", "127.0.0.1"),
+        "lmstudio" => ("https://lmstudio.ai", "lmstudio.ai"),
+        "minimax" => ("https://platform.minimax.io/user-center/payment/coding-plan", "platform.minimax.io"),
         _ => return None,
     })
 }
@@ -992,7 +1073,17 @@ fn ring_window<'a>(
         "codex" => windows.first(),
         "cursor" => by_id("included").or_else(|| by_id("api")),
         "grok" => by_id("credits").or_else(|| windows.first()),
-        _ => antigravity_lane(windows, antigravity_limit, antigravity_model),
+        "gemini" => antigravity_lane(windows, antigravity_limit, antigravity_model),
+        "glm" | "minimax" => by_id("session").or_else(|| windows.first()),
+        "opencode" | "kimi" => by_id("rolling").or_else(|| by_id("weekly")).or_else(|| windows.first()),
+        "commandcode" => by_id("monthly").or_else(|| windows.first()),
+        "copilot" => by_id("premium_interactions").or_else(|| windows.first()),
+        "kiro" => by_id("credits").or_else(|| windows.first()),
+        "ollama" => by_id("monthly")
+            .or_else(|| by_id("weekly"))
+            .or_else(|| by_id("session"))
+            .or_else(|| windows.first()),
+        _ => windows.first(),
     }
 }
 
@@ -1047,7 +1138,8 @@ pub(crate) fn snapshot_of(app: &AppHandle, id: &str) -> usage::UsageSnapshot {
         "cursor" => st.cursor.lock().unwrap().clone(),
         "grok" => st.grok.lock().unwrap().clone(),
         "gemini" => st.antigravity.lock().unwrap().clone(),
-        _ => st.usage.lock().unwrap().clone(),
+        "claude" => st.usage.lock().unwrap().clone(),
+        other => st.extras.lock().unwrap().get(other).cloned().unwrap_or_default(),
     }
 }
 
@@ -1378,18 +1470,62 @@ pub fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+fn load_extras() -> std::collections::HashMap<String, usage::UsageSnapshot> {
+    [
+        ("glm", glm::load_persisted()),
+        ("opencode", opencode::load_persisted()),
+        ("commandcode", commandcode::load_persisted()),
+        ("copilot", copilot::load_persisted()),
+        ("kimi", kimi::load_persisted()),
+        ("kiro", kiro::load_persisted()),
+        ("ollama", ollama::load_persisted()),
+        ("ollama-local", ollama::load_persisted_local()),
+        ("lmstudio", lmstudio::load_persisted()),
+        ("minimax", minimax::load_persisted()),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_string(), v))
+    .collect()
+}
+
 pub fn provider_label(id: &str) -> &'static str {
     match id {
         "codex" => "Codex",
         "cursor" => "Cursor",
         "grok" => "Grok",
         "gemini" => "Antigravity",
+        "glm" => "GLM",
+        "opencode" => "OpenCode",
+        "commandcode" => "Command Code",
+        "copilot" => "GitHub Copilot",
+        "kimi" => "Kimi",
+        "kiro" => "Kiro",
+        "ollama" => "Ollama",
+        "ollama-local" => "Ollama (Local)",
+        "lmstudio" => "LM Studio",
+        "minimax" => "MiniMax",
         _ => "Claude",
     }
 }
 
 /// Every provider the tray menu can offer, in the order the notch shows them.
-pub const TRAY_PROVIDER_IDS: [&str; 5] = ["claude", "codex", "cursor", "grok", "gemini"];
+pub const TRAY_PROVIDER_IDS: [&str; 15] = [
+    "claude",
+    "codex",
+    "cursor",
+    "grok",
+    "gemini",
+    "glm",
+    "opencode",
+    "commandcode",
+    "copilot",
+    "kimi",
+    "kiro",
+    "ollama",
+    "ollama-local",
+    "lmstudio",
+    "minimax",
+];
 
 /// Keeps the tray menu current. macOS rebuilds its menu as it opens; Tauri has no such hook, so it
 /// is rebuilt whenever a reading changes, and once a minute besides — otherwise "Resets in 12 min"
@@ -1532,6 +1668,7 @@ fn main() {
             cursor: Mutex::new(cursor::load_persisted()),
             grok: Mutex::new(grok::load_persisted()),
             antigravity: Mutex::new(antigravity::load_persisted()),
+            extras: Mutex::new(load_extras()),
             glyphs: Mutex::new(Default::default()),
             activity: Mutex::new(Vec::new()),
         })
@@ -1541,6 +1678,9 @@ fn main() {
             get_codex,
             get_cursor,
             get_grok,
+            get_provider,
+            get_keys,
+            set_keys,
             get_antigravity,
             get_glyphs,
             get_activity,
@@ -1605,6 +1745,16 @@ fn main() {
             cursor::start(handle.clone());
             grok::start(handle.clone());
             antigravity::start(handle.clone());
+            glm::start(handle.clone());
+            opencode::start(handle.clone());
+            commandcode::start(handle.clone());
+            copilot::start(handle.clone());
+            kimi::start(handle.clone());
+            kiro::start(handle.clone());
+            ollama::start(handle.clone());
+            ollama::start_local(handle.clone());
+            lmstudio::start(handle.clone());
+            minimax::start(handle.clone());
             activity::start(handle.clone());
             // Collecting glyphs may read icon resources out of a few executables; do it off the main thread and push when done
             let gh = handle.clone();

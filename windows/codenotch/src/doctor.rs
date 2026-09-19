@@ -79,6 +79,15 @@ pub fn run() -> String {
     o += &format!("  {}\n", crate::cursor::probe());
     o += &format!("  {}\n", crate::grok::probe());
     o += &format!("  {}\n", crate::antigravity::probe());
+    o += &format!("  {}\n", crate::glm::probe());
+    o += &format!("  {}\n", crate::opencode::probe());
+    o += &format!("  {}\n", crate::commandcode::probe());
+    o += &format!("  {}\n", crate::copilot::probe());
+    o += &format!("  {}\n", crate::kimi::probe());
+    o += &format!("  {}\n", crate::kiro::probe());
+    o += &format!("  {}\n", crate::ollama::probe());
+    o += &format!("  {}\n", crate::lmstudio::probe());
+    o += &format!("  {}\n", crate::minimax::probe());
     o += &format!("\nprovider glyphs:\n{}\n", crate::glyphs::probe());
     o += &format!("\nworking state:\n  {}\n", crate::activity::probe());
 

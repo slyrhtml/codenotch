@@ -83,6 +83,24 @@ pub struct Config {
     /// false = no arc above the notch to carry it by. Nothing is lost: Appearance → Edge moves it too.
     #[serde(default = "yes")]
     pub show_move_handle: bool,
+    /// Ollama cloud API key, pasted in Settings. `OLLAMA_API_KEY` still wins when set.
+    #[serde(default)]
+    pub ollama_api_key: String,
+    /// Local Ollama host. Empty means `http://127.0.0.1:11434`.
+    #[serde(default)]
+    pub ollama_host: String,
+    /// MiniMax Coding Plan key, pasted in Settings. The MiniMax env vars still win when set.
+    #[serde(default)]
+    pub minimax_api_key: String,
+    /// `international` (api.minimax.io) or `china` (api.minimaxi.com).
+    #[serde(default = "default_minimax_region")]
+    pub minimax_region: String,
+    /// Local LM Studio host. Empty means the port in `~/.lmstudio/.internal/http-server-config.json`, or :1234.
+    #[serde(default)]
+    pub lmstudio_host: String,
+    /// Optional LM Studio API token. `LM_API_TOKEN` still wins when set.
+    #[serde(default)]
+    pub lmstudio_token: String,
 }
 
 fn default_notch_y() -> f64 {
@@ -133,6 +151,9 @@ fn default_antigravity_limit() -> String {
 fn default_antigravity_model() -> String {
     "gemini".into()
 }
+fn default_minimax_region() -> String {
+    "international".into()
+}
 
 fn default_port() -> u16 {
     48666
@@ -162,6 +183,12 @@ impl Default for Config {
             notch_visible: true,
             tray_visible: true,
             show_move_handle: true,
+            ollama_api_key: String::new(),
+            ollama_host: String::new(),
+            minimax_api_key: String::new(),
+            minimax_region: default_minimax_region(),
+            lmstudio_host: String::new(),
+            lmstudio_token: String::new(),
         }
     }
 }

@@ -26,15 +26,40 @@ pub struct Glyph {
     pub source: String,
 }
 
-pub const IDS: [&str; 5] = ["claude", "codex", "cursor", "grok", "gemini"];
+pub const IDS: [&str; 15] = [
+    "claude",
+    "codex",
+    "cursor",
+    "grok",
+    "gemini",
+    "glm",
+    "opencode",
+    "commandcode",
+    "copilot",
+    "kimi",
+    "kiro",
+    "ollama",
+    "ollama-local",
+    "lmstudio",
+    "minimax",
+];
 
 /// Built-in artwork (@lobehub/icons-static-svg, MIT): the OpenAI mark for codex (matching upstream's glyph choice), the Antigravity mark for gemini
-const BUILTIN: [(&str, &str); 5] = [
+const BUILTIN: [(&str, &str); 14] = [
     ("claude", include_str!("../glyphs/claude.svg")),
     ("codex", include_str!("../glyphs/codex.svg")),
     ("cursor", include_str!("../glyphs/cursor.svg")),
     ("grok", include_str!("../glyphs/grok.svg")),
     ("gemini", include_str!("../glyphs/gemini.svg")),
+    ("glm", include_str!("../glyphs/glm.svg")),
+    ("opencode", include_str!("../glyphs/opencode.svg")),
+    ("copilot", include_str!("../glyphs/copilot.svg")),
+    ("kimi", include_str!("../glyphs/kimi.svg")),
+    ("kiro", include_str!("../glyphs/kiro.svg")),
+    ("ollama", include_str!("../glyphs/ollama.svg")),
+    ("ollama-local", include_str!("../glyphs/ollama.svg")),
+    ("lmstudio", include_str!("../glyphs/lmstudio.svg")),
+    ("minimax", include_str!("../glyphs/minimax.svg")),
 ];
 
 /// Minimal SVG sanitising before inlining into the DOM: drop <script> blocks and on*="…" event
@@ -166,6 +191,20 @@ fn app_candidates(id: &str) -> Vec<PathBuf> {
         "gemini" => {
             v.push(programs.join("Antigravity").join("Antigravity.exe"));
             v.push(programs.join("antigravity").join("Antigravity.exe"));
+        }
+        "copilot" => {
+            if let Some(pf) = std::env::var_os("ProgramFiles") {
+                v.push(PathBuf::from(pf).join("GitHub CLI").join("gh.exe"));
+            }
+        }
+        "ollama" | "ollama-local" => {
+            if let Some(h) = dirs::home_dir() {
+                v.push(local.join("Programs").join("Ollama").join("ollama.exe"));
+                v.push(h.join("AppData").join("Local").join("Programs").join("Ollama").join("ollama app.exe"));
+            }
+        }
+        "lmstudio" => {
+            v.push(programs.join("LM Studio").join("LM Studio.exe"));
         }
         _ => {}
     }
@@ -308,7 +347,7 @@ pub fn collect() -> HashMap<String, Glyph> {
 /// For doctor
 pub fn probe() -> String {
     let m = collect();
-    let mut lines = vec![format!("glyph directory: {} (drop claude/codex/cursor/grok/gemini .svg or .png files here)", user_dir().display())];
+    let mut lines = vec![format!("glyph directory: {} (drop provider .svg or .png files here)", user_dir().display())];
     for id in IDS {
         lines.push(match m.get(id) {
             Some(g) => format!("  {id}: {} ← {}", g.kind, g.source),

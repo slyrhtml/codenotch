@@ -241,6 +241,20 @@ let cursorSnap={status:'absent',windows:[],fetched_at:0,note:''};
 // Grok Build credits, from the Grok CLI's own session; absent until that CLI is signed in
 let grokSnap={status:'absent',windows:[],fetched_at:0,note:''};
 let agSnap={status:'absent',windows:[],fetched_at:0,note:''};
+const EXTRA_PROVIDERS=[
+  {id:'glm',name:'GLM',glyph:'G'},
+  {id:'opencode',name:'OpenCode',glyph:'Oc'},
+  {id:'commandcode',name:'Command Code',glyph:'Cc'},
+  {id:'copilot',name:'Copilot',glyph:'Cp'},
+  {id:'kimi',name:'Kimi',glyph:'Km'},
+  {id:'kiro',name:'Kiro',glyph:'Ki'},
+  {id:'ollama',name:'Ollama',glyph:'Ol'},
+  {id:'ollama-local',name:'Ollama',glyph:'O'},
+  {id:'lmstudio',name:'LM Studio',glyph:'Lm'},
+  {id:'minimax',name:'MiniMax',glyph:'Mm'}
+];
+const extraSnaps={};
+for(const p of EXTRA_PROVIDERS) extraSnaps[p.id]={status:'absent',windows:[],fetched_at:0,note:''};
 let glyphs={}; // id → {kind:'mark'|'appicon', url}
 let activity=[]; // working state of the non-Claude providers: {provider,state:'busy'|'waiting',name,detail,since}
 /* Which screen edge the notch is pinned to. Rust owns it (it is what placed the window); the page is
@@ -670,6 +684,10 @@ function providers(){
   if(cursorSnap.status!=='absent') list.push({id:'cursor',name:'Cursor',glyph:'Cu',snap:cursorSnap});
   if(grokSnap.status!=='absent') list.push({id:'grok',name:'Grok',glyph:'Gk',snap:grokSnap});
   if(agSnap.status!=='absent') list.push({id:'gemini',name:'Antigravity',glyph:'Ag',snap:agSnap});
+  for(const p of EXTRA_PROVIDERS){
+    const snap=extraSnaps[p.id];
+    if(snap&&snap.status!=='absent') list.push({id:p.id,name:p.name,glyph:p.glyph,snap});
+  }
   if(Array.isArray(notchSlots)&&notchSlots.length){
     const picked=list.filter(p=>!!slotFor(p.id));
     // Never leave the notch with nothing in it: an empty result means the choice no longer matches
@@ -699,6 +717,14 @@ function headlineOf(snap,id){
   if(id==='codex') return ws[0];
   if(id==='cursor') return byId('included')||byId('api');
   if(id==='grok') return byId('credits')||ws[0];
+  if(id==='glm'||id==='minimax') return byId('session')||ws[0];
+  if(id==='opencode'||id==='kimi') return byId('rolling')||byId('weekly')||ws[0];
+  if(id==='commandcode') return byId('monthly')||ws[0];
+  if(id==='copilot') return byId('premium_interactions')||ws[0];
+  if(id==='kiro') return byId('credits')||ws[0];
+  if(id==='ollama') return byId('monthly')||byId('weekly')||byId('session')||ws[0];
+  if(id==='ollama-local'||id==='lmstudio') return ws[0];
+  if(id!=='gemini') return ws[0];
   const fam=ws.filter(w=>laneFamily(w)===agPrefs.model), lanes=fam.length?fam:ws;
   if(agPrefs.limit!=='automatic'){ const w=tightestOf(lanes.filter(w=>laneIs(w,agPrefs.limit))); if(w) return w; }
   return tightestOf(lanes.filter(w=>w.used<1))||tightestOf(lanes)||lanes[0];
@@ -712,6 +738,10 @@ function weeklyOf(snap,id){
   if(id==='codex') return byId('secondary');
   if(id==='cursor') return null;
   if(id==='grok') return null; // the credits window is already the weekly one
+  if(id==='glm'||id==='opencode'||id==='commandcode'||id==='kimi'||id==='minimax') return byId('weekly');
+  if(id==='ollama') return byId('weekly');
+  if(id==='copilot'||id==='kiro'||id==='ollama-local'||id==='lmstudio') return null;
+  if(id!=='gemini') return null;
   const fam=ws.filter(w=>laneFamily(w)===agPrefs.model), lanes=fam.length?fam:ws;
   return tightestOf(lanes.filter(w=>laneIs(w,'weekly')));
 }
@@ -1145,6 +1175,10 @@ invoke('get_grok').then(u=>{grokSnap=u||grokSnap;renderRing();}).catch(()=>{});
 
 listen('antigravity',e=>{agSnap=e.payload||agSnap;settle('gemini');renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
 invoke('get_antigravity').then(u=>{agSnap=u||agSnap;renderRing();}).catch(()=>{});
+for(const p of EXTRA_PROVIDERS){
+  listen(p.id,e=>{extraSnaps[p.id]=e.payload||extraSnaps[p.id];settle(p.id);renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
+  invoke('get_provider',{id:p.id}).then(u=>{if(u) extraSnaps[p.id]=u;renderRing();}).catch(()=>{});
+}
 invoke('get_notch_slots').then(v=>{if(Array.isArray(v)){notchSlots=v;renderRing();}}).catch(()=>{});
 listen('notch_slots',e=>{
   notchSlots=Array.isArray(e.payload)?e.payload:null;

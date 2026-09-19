@@ -77,6 +77,8 @@
   .item{padding:9px 12px;min-height:40px;display:flex;align-items:center;justify-content:space-between;gap:12px}
   .item.cap{min-height:0;padding:8px 12px;font-size:12px;color:var(--text2);display:block}
   .item .hint{font-size:12px;color:var(--text2)}
+  .item input,.item select.key{flex:1;min-width:0;max-width:220px;height:28px;padding:0 8px;border-radius:6px;
+    border:1px solid var(--line);background:var(--seg-bg);color:var(--text);font:inherit}
   .value{color:var(--text2)}
 
   /* ---- account rows ---- */
@@ -140,6 +142,16 @@
         <div id="acc-off-wrap" hidden>
           <div class="sec">Not connected</div>
           <div class="group" id="acc-off" data-dynamic></div>
+        </div>
+        <div class="sec">Pasted keys</div>
+        <div class="group">
+          <div class="item"><span>Ollama API key</span><input id="key-ollama" type="password" autocomplete="off" spellcheck="false"></div>
+          <div class="item"><span>Ollama host</span><input id="key-ollama-host" type="text" placeholder="http://127.0.0.1:11434" spellcheck="false"></div>
+          <div class="item"><span>MiniMax API key</span><input id="key-minimax" type="password" autocomplete="off" spellcheck="false"></div>
+          <div class="item"><span>MiniMax region</span><select class="key" id="key-minimax-region"><option value="international">International</option><option value="china">China</option></select></div>
+          <div class="item"><span>LM Studio host</span><input id="key-lmstudio-host" type="text" placeholder="http://127.0.0.1:1234" spellcheck="false"></div>
+          <div class="item"><span>LM Studio token</span><input id="key-lmstudio" type="password" autocomplete="off" spellcheck="false"></div>
+          <div class="item cap">Borrowed sessions still come from the tools themselves. These fields are only for keys Codenotch owns — Ollama Cloud, MiniMax, and an optional LM Studio token. Environment variables win when set.</div>
         </div>
       </section>
 
@@ -795,8 +807,13 @@ document.getElementById('close').addEventListener('click', () => {
 });
 
 /* ---- providers ---------------------------------------------------------- */
-const ORDER = ['claude', 'codex', 'cursor', 'grok', 'gemini'];
-const FALLBACK_LABEL = { claude:'Claude', codex:'Codex', cursor:'Cursor', grok:'Grok', gemini:'Antigravity' };
+const ORDER = ['claude','codex','cursor','grok','gemini','glm','opencode','commandcode','copilot','kimi','kiro','ollama','ollama-local','lmstudio','minimax'];
+const FALLBACK_LABEL = {
+  claude:'Claude', codex:'Codex', cursor:'Cursor', grok:'Grok', gemini:'Antigravity',
+  glm:'GLM', opencode:'OpenCode', commandcode:'Command Code', copilot:'GitHub Copilot',
+  kimi:'Kimi', kiro:'Kiro', ollama:'Ollama', 'ollama-local':'Ollama (Local)',
+  lmstudio:'LM Studio', minimax:'MiniMax'
+};
 let options = [];      // [{id,label,status,used}] from get_tray_options
 let glyphs = {};       // id -> {kind:'svg'|'png'|'appicon', svg, url}
 function providerList(){
@@ -1188,6 +1205,34 @@ document.getElementById('author').addEventListener('click', () => {
   catch(e) { /* the built-in number stays */ }
 })();
 
+/* ---- pasted keys ---------------------------------------------------------- */
+function fillKeys(k){
+  if(!k || typeof k !== 'object') return;
+  document.getElementById('key-ollama').value = k.ollama_api_key || k.ollamaApiKey || '';
+  document.getElementById('key-ollama-host').value = k.ollama_host || k.ollamaHost || '';
+  document.getElementById('key-minimax').value = k.minimax_api_key || k.minimaxApiKey || '';
+  document.getElementById('key-minimax-region').value = (k.minimax_region || k.minimaxRegion || 'international');
+  document.getElementById('key-lmstudio-host').value = k.lmstudio_host || k.lmstudioHost || '';
+  document.getElementById('key-lmstudio').value = k.lmstudio_token || k.lmstudioToken || '';
+}
+function saveKeys(){
+  const keys = {
+    ollama_api_key: document.getElementById('key-ollama').value,
+    ollama_host: document.getElementById('key-ollama-host').value,
+    minimax_api_key: document.getElementById('key-minimax').value,
+    minimax_region: document.getElementById('key-minimax-region').value,
+    lmstudio_host: document.getElementById('key-lmstudio-host').value,
+    lmstudio_token: document.getElementById('key-lmstudio').value
+  };
+  invoke('set_keys', { keys })
+    .then(v => { fillKeys(v); toast(); refreshOptions(); })
+    .catch(e => strip('set_keys failed: ' + errText(e)));
+}
+['key-ollama','key-ollama-host','key-minimax','key-lmstudio-host','key-lmstudio'].forEach(id => {
+  document.getElementById(id).addEventListener('change', saveKeys);
+});
+document.getElementById('key-minimax-region').addEventListener('change', saveKeys);
+
 /* ---- start ---------------------------------------------------------------- */
 function renderAll(){
   renderAccounts();
@@ -1227,6 +1272,7 @@ function boot(){
   autostart.refresh();
   moveHandle.refresh();
   hooks.refresh();
+  call('get_keys', undefined, null).then(v => fillKeys(v));
 }
 /* Readings and the accent can change while the window is behind something else; coming back to it is
    when the old values are wrong, so that is when they are read again. */

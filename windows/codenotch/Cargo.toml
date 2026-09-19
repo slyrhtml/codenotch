@@ -2,7 +2,7 @@
 name = "codenotch"
 version = "1.14.0"
 edition = "2021"
-description = "Codenotch for Windows — usage notch for Claude, Codex, Cursor and Antigravity"
+description = "Codenotch for Windows — usage notch for Claude, Codex, Cursor, GLM, Copilot and the other coding assistants"
 license = "MIT"
 repository = "https://github.com/Im-Midi/codenotch-windows"
 

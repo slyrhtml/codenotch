@@ -12,10 +12,19 @@ The SVG files in this directory come from the npm package `@lobehub/icons-static
 | grok.svg | icons/grok.svg | Grok cell |
 | gemini.svg | icons/antigravity.svg | Antigravity cell |
 | gemini-alt.svg | icons/gemini.svg | alternative: the Gemini spark |
+| glm.svg | icons/zhipu.svg | GLM cell |
+| opencode.svg | icons/opencode.svg | OpenCode cell |
+| copilot.svg | icons/githubcopilot.svg | GitHub Copilot cell |
+| kimi.svg | icons/kimi.svg | Kimi cell |
+| kiro.svg | icons/kiro.svg | Kiro cell |
+| ollama.svg | icons/ollama.svg | Ollama / Ollama (Local) cells |
+| lmstudio.svg | icons/lmstudio.svg | LM Studio cell |
+| minimax.svg | icons/minimax.svg | MiniMax cell |
 
 MIT License — Copyright (c) LobeHub. See that repository's LICENSE.
 
-**Trademarks**: these marks are trademarks of Anthropic, OpenAI, Anysphere (Cursor), xAI (Grok) and Google
+**Trademarks**: these marks are trademarks of Anthropic, OpenAI, Anysphere (Cursor), xAI (Grok), Google,
+Zhipu, OpenCode, GitHub, Moonshot, Kiro, Ollama, LM Studio and MiniMax
 respectively, and are used here only to identify the product whose usage is displayed. Whether
 they stay in a distributed build is the repository owner's call under each brand's guidelines;
 they can be swapped for generated glyphs without touching any code.
