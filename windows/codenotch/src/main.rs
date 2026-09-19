@@ -1239,6 +1239,40 @@ fn get_notch_slots(app: AppHandle) -> Vec<config::TraySlot> {
     c.notch_slots.clone()
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct Appearance {
+    accent_color: String,
+    surface_style: String,
+}
+
+fn appearance_of(c: &config::Config) -> Appearance {
+    Appearance {
+        accent_color: c.accent_color.clone(),
+        surface_style: c.surface_style.clone(),
+    }
+}
+
+#[tauri::command]
+fn get_appearance(app: AppHandle) -> Appearance {
+    let st = app.state::<AppState>();
+    let c = st.cfg.lock().unwrap();
+    appearance_of(&c)
+}
+
+#[tauri::command]
+fn set_appearance(app: AppHandle, accent_color: String, surface_style: String) -> Appearance {
+    let look = {
+        let st = app.state::<AppState>();
+        let mut c = st.cfg.lock().unwrap();
+        c.accent_color = config::accent_or_system(&accent_color);
+        c.surface_style = config::surface_or_solid(&surface_style);
+        config::save(&c);
+        appearance_of(&c)
+    };
+    let _ = app.emit("appearance", &look);
+    look
+}
+
 #[tauri::command]
 fn set_notch_slots(app: AppHandle, slots: Vec<config::TraySlot>) {
     let list = {
@@ -1701,6 +1735,8 @@ fn main() {
             get_tray_options,
             get_notch_slots,
             set_notch_slots,
+            get_appearance,
+            set_appearance,
             get_antigravity_prefs,
             set_antigravity_prefs,
             get_app_icon,

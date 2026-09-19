@@ -101,6 +101,12 @@ pub struct Config {
     /// Optional LM Studio API token. `LM_API_TOKEN` still wins when set.
     #[serde(default)]
     pub lmstudio_token: String,
+    /// Ring accent: "system" (Windows accent / default green) or a 6-digit hex without `#`.
+    #[serde(default = "default_accent_color")]
+    pub accent_color: String,
+    /// Notch surface: "solid" (opaque black), "darkGlass" (blurred dark), "system" (follow Windows light/dark).
+    #[serde(default = "default_surface_style")]
+    pub surface_style: String,
 }
 
 fn default_notch_y() -> f64 {
@@ -154,6 +160,35 @@ fn default_antigravity_model() -> String {
 fn default_minimax_region() -> String {
     "international".into()
 }
+fn default_accent_color() -> String {
+    "system".into()
+}
+fn default_surface_style() -> String {
+    "solid".into()
+}
+
+/// Persistence keys match the Mac `AccentColorChoice` raw values.
+pub const ACCENT_COLORS: [&str; 11] = [
+    "system", "ff33e1", "eb4236", "eb8436", "ffd400", "00ff88", "00e5cc", "36a8eb", "6c5ce7", "b026ff",
+    "f7f6f5",
+];
+pub const SURFACE_STYLES: [&str; 3] = ["solid", "darkGlass", "system"];
+
+pub fn accent_or_system(value: &str) -> String {
+    let v = value.trim().trim_start_matches('#').to_ascii_lowercase();
+    if ACCENT_COLORS.contains(&v.as_str()) {
+        v
+    } else {
+        default_accent_color()
+    }
+}
+pub fn surface_or_solid(value: &str) -> String {
+    if SURFACE_STYLES.contains(&value) {
+        value.to_string()
+    } else {
+        default_surface_style()
+    }
+}
 
 fn default_port() -> u16 {
     48666
@@ -189,6 +224,8 @@ impl Default for Config {
             minimax_region: default_minimax_region(),
             lmstudio_host: String::new(),
             lmstudio_token: String::new(),
+            accent_color: default_accent_color(),
+            surface_style: default_surface_style(),
         }
     }
 }
@@ -226,6 +263,8 @@ pub fn load() -> Config {
     // The old slider's 40–100 %, or a hand-edited file, lands on one of the three sizes
     cfg.scale = snap_scale(cfg.scale);
     cfg.weekly_ring = weekly_ring_or_off(&cfg.weekly_ring);
+    cfg.accent_color = accent_or_system(&cfg.accent_color);
+    cfg.surface_style = surface_or_solid(&cfg.surface_style);
     cfg
 }
 
@@ -241,7 +280,7 @@ pub fn save(cfg: &Config) {
 
 #[cfg(test)]
 mod tests {
-    use super::{snap_scale, weekly_ring_or_off};
+    use super::{accent_or_system, snap_scale, surface_or_solid, weekly_ring_or_off};
 
     #[test]
     fn a_saved_scale_snaps_to_the_nearest_size() {
@@ -259,5 +298,18 @@ mod tests {
         assert_eq!(weekly_ring_or_off("outside"), "outside");
         assert_eq!(weekly_ring_or_off("Inside"), "off");
         assert_eq!(weekly_ring_or_off(""), "off");
+    }
+
+    #[test]
+    fn accent_hexes_and_system_are_kept() {
+        assert_eq!(accent_or_system("system"), "system");
+        assert_eq!(accent_or_system("#00FF88"), "00ff88");
+        assert_eq!(accent_or_system("nope"), "system");
+    }
+
+    #[test]
+    fn only_known_surfaces_are_kept() {
+        assert_eq!(surface_or_solid("darkGlass"), "darkGlass");
+        assert_eq!(surface_or_solid("glass"), "solid");
     }
 }

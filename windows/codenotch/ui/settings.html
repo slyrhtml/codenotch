@@ -83,20 +83,23 @@
 
   /* ---- account rows ---- */
   .acct{padding:9px 12px}
-  .acct-line{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:24px}
-  .acct-name{display:flex;align-items:center;gap:10px;min-width:0}
+  .acct-line{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px;cursor:pointer}
+  .acct-name{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
   .acct.off .acct-name{color:var(--text2)}
   .acct.off .glyph{opacity:.5}
   .acct-detail{margin:4px 0 0 26px;font-size:12px;color:var(--text2)}
   .acct-sub{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 0 26px;font-size:13px}
+  .handle{width:12px;height:18px;flex:none;opacity:.35;cursor:grab;background:
+    radial-gradient(circle,var(--text2) 1.1px,transparent 1.2px) 0 0/6px 6px}
+  .acct.off .handle{visibility:hidden}
   .glyph{width:16px;height:16px;display:inline-grid;place-items:center;flex:none;color:var(--text)}
   .glyph svg{width:16px;height:16px;fill:currentColor}
   .glyph img{width:16px;height:16px;border-radius:4px;display:block}
   .glyph.letter{font-size:10px;font-weight:700;background:var(--seg-bg);border-radius:4px}
 
   /* ---- controls: Windows 11 cues in the system accent ---- */
-  .switch{width:40px;height:20px;border-radius:10px;border:1px solid var(--text2);background:transparent;position:relative;flex:none;padding:0}
-  .switch::after{content:"";position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:6px;background:var(--text2);transition:left .12s}
+  .switch{width:44px;height:24px;border-radius:12px;border:1px solid var(--text2);background:transparent;position:relative;flex:none;padding:0;cursor:pointer}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:8px;background:var(--text2);transition:left .12s;pointer-events:none}
   .switch.on{border-color:transparent;background:var(--accent)}
   .switch.on::after{left:23px;background:var(--on-accent)}
   .switch:disabled,.switch.locked{opacity:.5}
@@ -111,6 +114,10 @@
   select option{color:#000}
   .link{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;font-size:12px}
   .link:hover{text-decoration:underline}
+  .swatches{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:280px}
+  .swatch{width:22px;height:22px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+  .swatch.on{border-color:var(--text);box-shadow:0 0 0 2px var(--text)}
+  .swatch.system{background:conic-gradient(#0a7aff,#00ff88,#ffd400,#ff33e1,#0a7aff)}
 
   #toast{position:fixed;right:18px;bottom:14px;background:var(--side);border:1px solid var(--line);border-radius:8px;
     padding:5px 10px;font-size:12px;color:var(--text2);opacity:0;transition:opacity .3s;pointer-events:none}
@@ -173,6 +180,13 @@
           </div>
           <div class="item cap" id="cap-screen" data-dynamic hidden></div>
           <div class="item"><span class="hint">The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. Recentre puts it back in the middle of the edge it is on, or on the main screen's right-hand edge if the screen it was on has been unplugged.</span><button class="btn" id="btn-recentre">Recentre</button></div>
+        </div>
+        <div class="sec">Theme</div>
+        <div class="group">
+          <div class="item"><span>Notch</span><span class="seg" id="seg-surface"><button data-v="solid">Solid black</button><button data-v="darkGlass">Dark glass</button><button data-v="system">Follow Windows</button></span></div>
+          <div class="item cap" id="cap-surface">Solid black is the original notch. Dark glass blurs the desktop behind it. Follow Windows uses a light pill when Windows is in light mode.</div>
+          <div class="item"><span>Accent color</span><div class="swatches" id="accents" data-dynamic></div></div>
+          <div class="item cap">The ring’s unused-quota colour. Amber and red warning colours stay fixed, the same as on the Mac.</div>
         </div>
         <div class="sec">App</div>
         <div class="group">
@@ -816,8 +830,22 @@ const FALLBACK_LABEL = {
 };
 let options = [];      // [{id,label,status,used}] from get_tray_options
 let glyphs = {};       // id -> {kind:'svg'|'png'|'appicon', svg, url}
-function providerList(){
+function allProviders(){
   return options.length ? options : ORDER.map(id => ({ id, label:FALLBACK_LABEL[id], status:'' }));
+}
+function isPlaceable(p){
+  // Claude always has a ring. Anyone already found — or turned on in a previous session — can too.
+  if(p.id === 'claude') return true;
+  if(notchSlots.some(sl => sl && sl.provider === p.id)) return true;
+  const s = String(p.status || '').toLowerCase();
+  if(s === 'absent') return false;
+  if(p.used != null) return true;
+  return !!(s && s !== '');
+}
+function providerList(){
+  // Every known tool gets a switch. Empty slots still mean "all on"; turning one off moves it
+  // to Not connected and tells the notch to drop that ring.
+  return allProviders();
 }
 function statusText(p){
   const words = STATUS_TEXT[uiLang] || STATUS_TEXT.en;
@@ -895,9 +923,13 @@ function agSelect(key, choices, value){
 }
 function accountBlock(p, isOn, locked){
   const st = statusText(p);
-  let h = '<div class="acct' + (isOn ? '' : ' off') + '">'
-    + '<div class="acct-line"><span class="acct-name">' + glyphHtml(p) + '<span>' + esc(p.label || p.id) + '</span></span>'
-    + '<button class="switch' + (isOn ? ' on' : '') + (locked ? ' locked' : '') + '" role="switch" aria-checked="' + isOn + '"'
+  let h = '<div class="acct' + (isOn ? '' : ' off') + '" data-acct="' + esc(p.id) + '">'
+    + '<div class="acct-line" data-np="' + esc(p.id) + '">'
+    + '<span class="acct-name">'
+    + (isOn ? '<span class="handle" draggable="true" data-drag="' + esc(p.id) + '" title="' + esc(ui('Drag to reorder', 'Drag to reorder')) + '"></span>' : '')
+    + glyphHtml(p) + '<span>' + esc(p.label || p.id) + '</span></span>'
+    + '<button type="button" class="switch' + (isOn ? ' on' : '') + (locked ? ' locked' : '') + '" role="switch" aria-checked="' + isOn + '"'
+    + (locked ? ' disabled' : '')
     + ' data-np="' + esc(p.id) + '" aria-label="' + esc(p.label || p.id) + '"></button></div>';
   if(st) h += '<div class="acct-detail">' + esc(st) + '</div>';
   if(p.id === 'gemini' && isOn){
@@ -949,10 +981,43 @@ function toggleNotch(id){
 }
 const accountsPane = document.getElementById('pane-accounts');
 accountsPane.addEventListener('click', e => {
+  if(e.target.closest('[data-drag]')) return;
+  if(e.target.closest('[data-remote="hooks"]')){ hooks.toggle(); return; }
+  if(e.target.closest('[data-ag]')) return;
   const np = e.target.closest('[data-np]');
-  if(np){ toggleNotch(np.dataset.np); return; }
-  if(e.target.closest('[data-remote="hooks"]')) hooks.toggle();
+  if(np){ toggleNotch(np.getAttribute('data-np')); }
 });
+let dragId = '';
+accountsPane.addEventListener('dragstart', e => {
+  const h = e.target.closest('[data-drag]');
+  if(!h){ e.preventDefault(); return; }
+  dragId = h.getAttribute('data-drag') || '';
+  e.dataTransfer.setData('text/plain', dragId);
+  e.dataTransfer.effectAllowed = 'move';
+});
+accountsPane.addEventListener('dragover', e => {
+  if(!dragId) return;
+  const row = e.target.closest('[data-acct]');
+  if(!row) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+});
+accountsPane.addEventListener('drop', e => {
+  const row = e.target.closest('[data-acct]');
+  const to = row && row.getAttribute('data-acct');
+  const from = dragId;
+  dragId = '';
+  if(!from || !to || from === to) return;
+  e.preventDefault();
+  const on = notchOn().slice();
+  const a = on.findIndex(sl => sl.provider === from);
+  const b = on.findIndex(sl => sl.provider === to);
+  if(a < 0 || b < 0) return;
+  const [moved] = on.splice(a, 1);
+  on.splice(b, 0, moved);
+  saveNotch(on);
+});
+accountsPane.addEventListener('dragend', () => { dragId = ''; });
 accountsPane.addEventListener('change', e => {
   const box = e.target.closest('[data-ag]');
   if(!box) return;
@@ -1205,6 +1270,76 @@ document.getElementById('author').addEventListener('click', () => {
   catch(e) { /* the built-in number stays */ }
 })();
 
+/* ---- theme -------------------------------------------------------------- */
+const ACCENT_CHOICES = [
+  {id:'system', title:'Device accent'},
+  {id:'ff33e1', title:'#FF33E1'},
+  {id:'eb4236', title:'#EB4236'},
+  {id:'eb8436', title:'#EB8436'},
+  {id:'ffd400', title:'#FFD400'},
+  {id:'00ff88', title:'#00FF88'},
+  {id:'00e5cc', title:'#00E5CC'},
+  {id:'36a8eb', title:'#36A8EB'},
+  {id:'6c5ce7', title:'#6C5CE7'},
+  {id:'b026ff', title:'#B026FF'},
+  {id:'f7f6f5', title:'#F7F6F5'}
+];
+const SURFACE_WHY = {
+  solid: 'The original opaque black notch. Always dark.',
+  darkGlass: 'A dark translucent notch that blurs whatever is behind it.',
+  system: 'Follows Windows light or dark mode. The pill stays a notch either way.'
+};
+let appearance = { accent_color:'system', surface_style:'solid' };
+function drawSurface(){
+  for(const b of document.querySelectorAll('#seg-surface button')){
+    const on = b.dataset.v === appearance.surface_style;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  document.getElementById('cap-surface').textContent = ui(SURFACE_WHY[appearance.surface_style] || SURFACE_WHY.solid, SURFACE_WHY[appearance.surface_style] || SURFACE_WHY.solid);
+}
+function drawAccents(){
+  const box = document.getElementById('accents');
+  box.innerHTML = ACCENT_CHOICES.map(c => {
+    const on = appearance.accent_color === c.id;
+    const bg = c.id === 'system' ? '' : ('background:#' + c.id);
+    return '<button type="button" class="swatch' + (c.id==='system'?' system':'') + (on?' on':'') + '" data-accent="' + c.id + '" title="' + esc(ui(c.title, c.title)) + '" style="' + bg + '" aria-pressed="' + on + '"></button>';
+  }).join('');
+  const id = appearance.accent_color;
+  if(id && id !== 'system'){
+    document.documentElement.style.setProperty('--accent', '#' + id);
+    const light = id === 'ffd400' || id === '00ff88' || id === '00e5cc' || id === 'f7f6f5';
+    document.documentElement.style.setProperty('--on-accent', light ? '#111111' : '#ffffff');
+  } else {
+    document.documentElement.style.removeProperty('--accent');
+    document.documentElement.style.removeProperty('--on-accent');
+  }
+}
+function saveAppearance(next){
+  const want = {
+    accent_color: next.accent_color,
+    surface_style: next.surface_style
+  };
+  appearance = next;
+  drawSurface();
+  drawAccents();
+  invoke('set_appearance', want)
+    .then(v => { if(v) appearance = { accent_color: v.accent_color || v.accentColor || appearance.accent_color, surface_style: v.surface_style || v.surfaceStyle || appearance.surface_style }; drawSurface(); drawAccents(); toast(); })
+    .catch(e => strip('set_appearance failed: ' + errText(e)));
+}
+document.getElementById('seg-surface').addEventListener('click', e => {
+  const b = e.target.closest('button[data-v]');
+  if(!b) return;
+  saveAppearance({ accent_color: appearance.accent_color, surface_style: b.dataset.v });
+});
+document.getElementById('accents').addEventListener('click', e => {
+  const b = e.target.closest('[data-accent]');
+  if(!b) return;
+  saveAppearance({ accent_color: b.getAttribute('data-accent'), surface_style: appearance.surface_style });
+});
+drawSurface();
+drawAccents();
+
 /* ---- pasted keys ---------------------------------------------------------- */
 function fillKeys(k){
   if(!k || typeof k !== 'object') return;
@@ -1273,6 +1408,33 @@ function boot(){
   moveHandle.refresh();
   hooks.refresh();
   call('get_keys', undefined, null).then(v => fillKeys(v));
+  call('get_appearance', undefined, null).then(v => {
+    if(!v) return;
+    appearance = {
+      accent_color: v.accent_color || v.accentColor || 'system',
+      surface_style: v.surface_style || v.surfaceStyle || 'solid'
+    };
+    drawSurface();
+    drawAccents();
+  });
+  try {
+    window.__TAURI__.event.listen('notch_slots', e => {
+      if(!Array.isArray(e.payload)) return;
+      notchSlots = e.payload.filter(x => x && typeof x.provider === 'string').map(x => ({ provider:x.provider }));
+      renderAccounts();
+    });
+    window.__TAURI__.event.listen('appearance', e => {
+      if(!e.payload) return;
+      appearance = {
+        accent_color: e.payload.accent_color || e.payload.accentColor || appearance.accent_color,
+        surface_style: e.payload.surface_style || e.payload.surfaceStyle || appearance.surface_style
+      };
+      drawSurface();
+      drawAccents();
+    });
+  } catch(e) { /* live updates stay one-way */ }
+  setTimeout(refreshOptions, 1500);
+  setTimeout(refreshOptions, 6000);
 }
 /* Readings and the accent can change while the window is behind something else; coming back to it is
    when the old values are wrong, so that is when they are read again. */

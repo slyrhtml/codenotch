@@ -6,16 +6,21 @@
   /* Visual reference: upstream docs/specs/2026-08-28-usage-notch-design.md, reproduced for Windows */
   *{box-sizing:border-box} /* content-box padding once pushed the card past the window's left edge */
   html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none}
-  body{font-family:"Segoe UI",system-ui,sans-serif;color:#fff}
-  #root{position:relative;width:100%;height:100%}
+  body{font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink,#fff)}
+  #root{position:relative;width:100%;height:100%;
+    --pill:#000;--card:#0a0a0a;--ink:#fff;--track:#303030;--stroke:#2e2e2e;--muted:#808080}
+  #root.surface-darkGlass #pill,#root.surface-darkGlass #card{
+    backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15)}
+  #root.surface-darkGlass{--pill:rgba(0,0,0,.52);--card:rgba(10,10,10,.64)}
+  #root.surface-system.light{--pill:#f2f2f4;--card:#fff;--ink:#1d1d1f;--track:#c8c8cc;--stroke:#d0d0d4;--muted:#6b6b6b}
 
   /* The pill on the right edge */
   #pill{
     position:absolute;right:0;top:50%;transform:translateY(-50%);
-    width:70px;padding:18px 0;background:#000;
+    width:70px;padding:18px 0;background:var(--pill);
     border-radius:20px 0 0 20px;
     /* Stays visible on dark wallpapers: a thin stroke plus a faint glow, the only outline when black sits on black */
-    border:1px solid #2e2e2e;border-right:none;
+    border:1px solid var(--stroke);border-right:none;
     box-shadow:none;
     display:flex;flex-direction:column;align-items:center;gap:14px;cursor:pointer;
   }
@@ -31,11 +36,11 @@
   #pill{--fillet:38.7px}
   #pill::before{
     top:calc(-1 * var(--fillet)); /* covers the 1 px stroke along the pill's top edge so there is no seam */
-    background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
+    background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
   }
   #pill::after{
     bottom:calc(-1 * var(--fillet));
-    background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
+    background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
   }
   .cell{display:flex;flex-direction:column;align-items:center;gap:6px}
   .ringwrap{position:relative;width:56px;height:56px;transition:transform .3s cubic-bezier(.34,1.4,.64,1)}
@@ -43,18 +48,18 @@
   .ringwrap > svg.ring,.ringwrap > svg.reading,.ringwrap > svg.activity{position:absolute;inset:0;overflow:visible} /* pins only the ring itself; an inline logo svg must not match this or it ends up in the top-left corner */
   .glyph{
     position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    font-size:20px;font-weight:700;color:#e8e8ea;letter-spacing:-.5px;
+    font-size:20px;font-weight:700;color:var(--ink);letter-spacing:-.5px;
   }
   .glyph.small{font-size:15px}
   /* Glyphs: mark = the provider's own brand mark (monochrome, shown white); appicon = the installed app's icon (colour, rounded and shrunk) */
   .glyph img,.glyph svg{display:block;pointer-events:none;user-select:none}
-  .glyph .mark{display:block;width:26px;height:26px;color:#e8e8ea}
+  .glyph .mark{display:block;width:26px;height:26px;color:var(--ink)}
   .glyph .mark svg{width:26px;height:26px;fill:currentColor} /* inline SVG follows currentColor, so it dims together with the cell */
   .glyph img.png{width:26px;height:26px;object-fit:contain}
   .glyph img.appicon{width:30px;height:30px;border-radius:8px;object-fit:cover}
-  .c-head .mark{display:inline-block;width:16px;height:16px;color:#e8e8ea;margin-right:2px}
+  .c-head .mark{display:inline-block;width:16px;height:16px;color:var(--ink);margin-right:2px}
   .c-head .mark svg{width:16px;height:16px;fill:currentColor}
-  .pct{font-size:15px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums}
+  .pct{font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
   .dim{opacity:.55}
   /* A stale reading dims the reading only. The track, the week and the glyph are all saying the same
      old thing, but whether an agent is running right now is current either way, so the activity arc
@@ -77,7 +82,7 @@
     /* Anchored on both sides = fluid width: whatever the WebView's real logical width, the card cannot
        extend past the window's left edge (a fixed max-width got clipped when the DPI disagreed).
        The 246 cap matches the upstream spec. */
-    max-width:246px;margin-left:auto;background:#0a0a0a;border-radius:16px;padding:16px;
+    max-width:246px;margin-left:auto;background:var(--card);border-radius:16px;padding:16px;
     overflow-wrap:anywhere;min-width:0;
     max-height:calc(100% - 16px);overflow:hidden; /* never taller than the window, however short it is */
     display:none;
@@ -88,27 +93,27 @@
      than ::after, so the card's overflow cannot clip it and it can be reported as hot. It spans the
      whole gap, its tip tucked 1 px under the pill's edge so the two meet. */
   #tail{
-    position:absolute;right:69px;width:32px;height:36px;background:#0a0a0a;display:none;
+    position:absolute;right:69px;width:32px;height:36px;background:var(--card);display:none;
     clip-path:path('M0 0C0 9 18.56 13.68 32 18C18.56 22.32 0 27 0 36Z');
   }
   #card.show + #tail{display:block}
   .c-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
   .c-title{font-size:14px;font-weight:700}
-  .c-sub{font-size:11px;color:#808080;margin-bottom:10px}
+  .c-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
   .win{margin-top:10px}
   .w-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;flex-wrap:wrap;column-gap:8px}
-  .w-label{color:#e8e8ea;font-weight:600;white-space:nowrap}
-  .w-reset{color:#808080;font-size:11px;white-space:nowrap;margin-left:auto} /* wrap as a whole when it does not fit; never break inside a word */
-  .w-track{height:4px;border-radius:2px;background:#2d2d2d;margin:6px 0 4px;overflow:hidden}
+  .w-label{color:var(--ink);font-weight:600;white-space:nowrap}
+  .w-reset{color:var(--muted);font-size:11px;white-space:nowrap;margin-left:auto} /* wrap as a whole when it does not fit; never break inside a word */
+  .w-track{height:4px;border-radius:2px;background:var(--track);margin:6px 0 4px;overflow:hidden}
   .w-fill{height:100%;border-radius:2px}
-  .w-used{font-size:11px;color:#808080}
-  .g-head{font-size:12px;font-weight:700;color:#e8e8ea;margin-top:12px}
-  .g-box{border:1px solid #242424;border-radius:10px;padding:0 10px 8px;margin-top:6px}
-  .c-note{font-size:12px;color:#c8c8c8;line-height:1.5;margin-top:6px}
-  .c-sessions{margin-top:12px;border-top:1px solid #1e1e1e;padding-top:8px}
-  .s-row{display:flex;align-items:center;gap:6px;font-size:11px;color:#b0b0b3;padding:2px 0}
+  .w-used{font-size:11px;color:var(--muted)}
+  .g-head{font-size:12px;font-weight:700;color:var(--ink);margin-top:12px}
+  .g-box{border:1px solid var(--stroke);border-radius:10px;padding:0 10px 8px;margin-top:6px}
+  .c-note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:6px}
+  .c-sessions{margin-top:12px;border-top:1px solid var(--stroke);padding-top:8px}
+  .s-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);padding:2px 0}
   .s-dot{width:6px;height:6px;border-radius:3px;flex:0 0 auto}
-  .s-more{font-size:11px;color:#808080;padding:2px 0}
+  .s-more{font-size:11px;color:var(--muted);padding:2px 0}
 
   /* ---- The other three edges -------------------------------------------------
      The rules above draw the right-hand edge, the original layout and still the default. Each block
@@ -212,10 +217,41 @@ const listen = window.__TAURI__.event.listen;
 
 /* Colour ramp (upstream palette values) */
 const AMPLE='#00FF88', WATCH='#F2FF00', CRIT='#FF3F00';
+const ACCENTS={system:'#00FF88',ff33e1:'#FF33E1',eb4236:'#EB4236',eb8436:'#EB8436',ffd400:'#FFD400',
+  '00ff88':'#00FF88','00e5cc':'#00E5CC','36a8eb':'#36A8EB','6c5ce7':'#6C5CE7',b026ff:'#B026FF',f7f6f5:'#F7F6F5'};
+let appearance={accent_color:'system',surface_style:'solid'};
+function ample(){ return ACCENTS[appearance.accent_color] || AMPLE; }
 // The status arc is neutral on purpose: the ring behind it is coloured by how much of the limit
 // is gone, and a green arc inside it reads as part of that scale. Waiting borrows the warning yellow.
 const TRACK='#303030', INK='#ffffff', DIM='#808080';
-const tone=f=> f>=0.8?CRIT : f>=0.5?WATCH : AMPLE;
+const tone=f=> f>=0.8?CRIT : f>=0.5?WATCH : ample();
+function applyAppearance(){
+  const root=document.getElementById('root');
+  if(!root) return;
+  root.classList.remove('surface-solid','surface-darkGlass','surface-system','light');
+  const style=appearance.surface_style||'solid';
+  root.classList.add('surface-'+style);
+  if(style==='system' && !matchMedia('(prefers-color-scheme: dark)').matches) root.classList.add('light');
+}
+function readAppearance(v){
+  if(!v||typeof v!=='object') return;
+  appearance={
+    accent_color:v.accent_color||v.accentColor||'system',
+    surface_style:v.surface_style||v.surfaceStyle||'solid'
+  };
+  applyAppearance();
+  if(typeof renderRing==='function') renderRing();
+  const shown=document.getElementById('card');
+  if(typeof renderCard==='function' && shown && shown.classList.contains('show')) renderCard();
+}
+applyAppearance();
+function cssVar(name, fallback){
+  const root=document.getElementById('root');
+  const v=root && getComputedStyle(root).getPropertyValue(name).trim();
+  return v||fallback;
+}
+function track(){ return cssVar('--track', TRACK); }
+function ink(){ return cssVar('--ink', INK); }
 // Whole percents, except where rounding would read as nothing used or nothing left, as the Mac's Percent does
 function smallPct(v){
   if(v<=0) return '0';
@@ -690,9 +726,10 @@ function providers(){
   }
   if(Array.isArray(notchSlots)&&notchSlots.length){
     const picked=list.filter(p=>!!slotFor(p.id));
-    // Never leave the notch with nothing in it: an empty result means the choice no longer matches
-    // any available provider, so fall back to showing everything rather than an empty pill.
+    // Honour the switches: do not bring back providers the user turned off just because
+    // the ones they left on are not installed.
     if(picked.length) return picked;
+    return list.slice(0,1);
   }
   return list;
 }
@@ -777,7 +814,8 @@ function renderRing(){
     const cell=pill.querySelector(`.cell[data-p="${p.id}"]`); if(!cell) continue;
     const svg=cell.querySelector('svg.ring'), reading=cell.querySelector('svg.reading'), activity=cell.querySelector('svg.activity'), pct=cell.querySelector('.pct'), glyph=cell.querySelector('.glyph'), wrap=cell.querySelector('.ringwrap');
     const h=headlineOf(p.snap,p.id);
-    let inner=`<circle cx="28" cy="28" r="22" fill="#2a2a2a"/><circle cx="28" cy="28" r="25" fill="none" stroke="${TRACK}" stroke-width="5"/>`;
+    const hole=getComputedStyle(document.getElementById('root')).getPropertyValue('--card').trim()||'#2a2a2a';
+    let inner=`<circle cx="28" cy="28" r="22" fill="${hole}"/><circle cx="28" cy="28" r="25" fill="none" stroke="${track()}" stroke-width="5"/>`;
     wrap.classList.toggle('pressed',!!refreshing[p.id]);
     reading.innerHTML=h && h.count==null?svgArc(25,Math.min(h.used,1),tone(h.used),5):'';
     if(weeklyRing!=='off'){ // the week, thinner and at its own radius, in its own colour: a session at 12% beside a week at 91% is the case this exists for
@@ -786,7 +824,7 @@ function renderRing(){
       const taken=weeklyRing==='inside'&&workState(p.id)!=='idle';
       if(wk&&(!h||wk.id!==h.id)&&!taken){
         const r=weeklyRing==='inside'?16:31;
-        inner+=`<circle cx="28" cy="28" r="${r}" fill="none" stroke="${TRACK}" stroke-width="2.4" opacity="0.7"/>`
+        inner+=`<circle cx="28" cy="28" r="${r}" fill="none" stroke="${track()}" stroke-width="2.4" opacity="0.7"/>`
           +svgArc(r,Math.min(wk.used,1),tone(wk.used),2.4,'opacity="0.85"');
       }
     }
@@ -794,7 +832,7 @@ function renderRing(){
     { // thin inner arc: spinning white = working, yellow pulse = waiting on you (one animation for all four, different sources)
       // Its own layer, so a stale reading can dim around it without dimming it: see `.ringwrap.stale`
       const ws=workState(p.id);
-      if(ws==='running') activity.innerHTML=`<g class="arc-spin">${svgArc(19,0.28,INK,2.5)}</g>`;
+      if(ws==='running') activity.innerHTML=`<g class="arc-spin">${svgArc(19,0.28,ink(),2.5)}</g>`;
       else if(ws==='attention') activity.innerHTML=`<g class="arc-pulse"><circle cx="28" cy="28" r="19" fill="none" stroke="${WATCH}" stroke-width="2.5"/></g>`;
       else activity.innerHTML='';
     }
@@ -832,7 +870,9 @@ function ago(ms){
   return ui().ago(m);
 }
 
-const STATE_DOT={running:INK,attention:WATCH,done:AMPLE,idle:TRACK};
+function stateDot(k){
+  return {running:ink(),attention:WATCH,done:ample(),idle:track()}[k]||track();
+}
 // The card is clipped, not scrolled, so rows past this would push its title off the top; the rest are counted, as on the Mac
 const SESSION_ROWS=5;
 function moreRow(n){ return n>0?`<div class="s-more">${ui().andMore(n)}</div>`:''; }
@@ -878,7 +918,7 @@ function renderCard(){
     if(act.length){
       html+=`<div class="c-sessions">`;
       for(const s of act.slice(0,SESSION_ROWS)){
-        html+=`<div class="s-row"><span class="s-dot" style="background:${STATE_DOT[s.state]||'#666'}"></span>${esc(s.title)}</div>`;
+        html+=`<div class="s-row"><span class="s-dot" style="background:${stateDot(s.state)}"></span>${esc(s.title)}</div>`;
       }
       html+=moreRow(act.length-SESSION_ROWS)+`</div>`;
     }
@@ -888,7 +928,7 @@ function renderCard(){
     if(acts.length){
       html+=`<div class="c-sessions">`;
       for(const a of acts.slice(0,SESSION_ROWS)){
-        const col=a.state==='waiting'?WATCH:INK;
+        const col=a.state==='waiting'?WATCH:ink();
         html+=`<div class="s-row"><span class="s-dot" style="background:${col}"></span>${esc(a.name)}<span style="color:#808080;margin-left:auto">${esc(textCopy(a.detail))}</span></div>`;
       }
       html+=moreRow(acts.length-SESSION_ROWS)+`</div>`;
@@ -1185,6 +1225,13 @@ listen('notch_slots',e=>{
   renderRing();
   if(card.classList.contains('show')){renderCard();armWatchdog();}
 }).catch(()=>{});
+invoke('get_appearance').then(readAppearance).catch(()=>{});
+listen('appearance',e=>readAppearance(e.payload)).catch(()=>{});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{
+  applyAppearance();
+  renderRing();
+  if(card.classList.contains('show')) renderCard();
+});
 invoke('get_antigravity_prefs').then(p=>{if(p){agPrefs=p;renderRing();}}).catch(()=>{});
 invoke('get_weekly_ring').then(v=>{if(typeof v==='string'){weeklyRing=v;renderRing();}}).catch(()=>{});
 listen('weekly_ring',e=>{if(typeof e.payload==='string'){weeklyRing=e.payload;renderRing();}}).catch(()=>{});
