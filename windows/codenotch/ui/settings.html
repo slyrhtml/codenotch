@@ -1213,17 +1213,19 @@ function nearestPreset(s){
 function isPreset(s){
   return PRESETS.some(p => Math.abs(p - s) < 0.001);
 }
-function pushScale(want, toastOnDone){
-  sizeBusy = true;
+function pushScale(want, toastOnDone, persist){
   notchSize = want;
-  renderSize();
-  invoke('set_scale', { scale: want })
+  if(persist !== false){
+    sizeBusy = true;
+    renderSize();
+  }
+  invoke('set_scale', { scale: want, persist: persist !== false })
     .then(v => { notchSize = typeof v === 'number' ? v : want; if(toastOnDone) toast(); })
     .catch(err => {
       strip('set_scale failed: ' + errText(err));
       return call('get_scale', undefined, null).then(v => { if(typeof v === 'number') notchSize = v; });
     })
-    .then(() => { sizeBusy = false; renderSize(); });
+    .then(() => { if(persist !== false){ sizeBusy = false; renderSize(); } });
 }
 function clampUiScale(n){
   return Math.max(SCALE_MIN, Math.min(SCALE_MAX, n));
@@ -1258,10 +1260,10 @@ document.getElementById('size-slider').addEventListener('input', e => {
   }
   document.getElementById('cap-size').textContent = ui(SIZE_CUSTOM, SIZE_CUSTOM);
   clearTimeout(scaleTimer);
-  scaleTimer = setTimeout(() => pushScale(want, false), 40);
+  scaleTimer = setTimeout(() => pushScale(want, false, false), 80);
 });
 document.getElementById('size-slider').addEventListener('change', e => {
-  pushScale(clampUiScale(Number(e.target.value) / 100), true);
+  pushScale(clampUiScale(Number(e.target.value) / 100), true, true);
 });
 
 const CARD_SCALE_MIN = 0.75, CARD_SCALE_MAX = 2;
@@ -1276,27 +1278,29 @@ function renderCardScale(){
   document.getElementById('card-pct').textContent = pct + '%';
   slider.disabled = cardBusy;
 }
-function pushCardScale(want, toastOnDone){
-  cardBusy = true;
+function pushCardScale(want, toastOnDone, persist){
   cardSize = want;
-  renderCardScale();
-  invoke('set_card_scale', { cardScale: want })
+  if(persist !== false){
+    cardBusy = true;
+    renderCardScale();
+  }
+  invoke('set_card_scale', { cardScale: want, persist: persist !== false })
     .then(v => { cardSize = typeof v === 'number' ? v : want; if(toastOnDone) toast(); })
     .catch(err => {
       strip('set_card_scale failed: ' + errText(err));
       return call('get_card_scale', undefined, null).then(v => { if(typeof v === 'number') cardSize = v; });
     })
-    .then(() => { cardBusy = false; renderCardScale(); });
+    .then(() => { if(persist !== false){ cardBusy = false; renderCardScale(); } });
 }
 document.getElementById('card-slider').addEventListener('input', e => {
   const want = clampCardScale(Number(e.target.value) / 100);
   cardSize = want;
   document.getElementById('card-pct').textContent = Math.round(want * 100) + '%';
   clearTimeout(cardTimer);
-  cardTimer = setTimeout(() => pushCardScale(want, false), 40);
+  cardTimer = setTimeout(() => pushCardScale(want, false, false), 80);
 });
 document.getElementById('card-slider').addEventListener('change', e => {
-  pushCardScale(clampCardScale(Number(e.target.value) / 100), true);
+  pushCardScale(clampCardScale(Number(e.target.value) / 100), true, true);
 });
 
 /* ---- Appearance: edge and screen -------------------------------------------
@@ -1490,6 +1494,7 @@ function drawAccents(){
   }
 }
 function saveAppearance(next){
+  if(next.accent_color === appearance.accent_color && next.surface_style === appearance.surface_style) return;
   const want = {
     accentColor: next.accent_color,
     surfaceStyle: next.surface_style
@@ -1498,7 +1503,7 @@ function saveAppearance(next){
   drawSurface();
   drawAccents();
   invoke('set_appearance', want)
-    .then(v => { if(v) appearance = { accent_color: v.accent_color || v.accentColor || appearance.accent_color, surface_style: v.surface_style || v.surfaceStyle || appearance.surface_style }; drawSurface(); drawAccents(); toast(); })
+    .then(v => { if(v) appearance = { accent_color: v.accent_color || v.accentColor || appearance.accent_color, surface_style: v.surface_style || v.surfaceStyle || appearance.surface_style }; drawSurface(); drawAccents(); })
     .catch(e => strip('set_appearance failed: ' + errText(e)));
 }
 document.getElementById('seg-surface').addEventListener('click', e => {

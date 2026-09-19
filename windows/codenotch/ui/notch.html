@@ -68,23 +68,25 @@
   /* Windows' Animation effects switch: a still arc and a solid ring, as on the Mac under Reduce Motion */
   @media (prefers-reduced-motion: reduce){.arc-spin,.arc-pulse{animation:none}.ringwrap{transition:none}}
 
-  /* Hover card, shown beside the hovered ring. Mac unfold/glide: spring in, ease out. */
+  /* Hover card, shown beside the hovered ring. Mac unfold/glide: spring in, ease out.
+     Sized to the Mac's 300 px card, with padding that keeps title, reset and used/left on their own
+     lines. CSS zoom is avoided: WebView2 double-paints glyphs under it. Scale is a transform. */
   #card{
-    --out-x:16px;--out-y:0px;
-    position:absolute;left:10px;right:84px;top:50%;
-    max-width:246px;margin-left:auto;background:var(--card);border-radius:16px;padding:16px;
-    overflow-wrap:anywhere;min-width:0;
-    max-height:calc(100% / var(--card-zoom, 1) - 16px);overflow:hidden;
+    --out-x:16px;--out-y:0px;--origin-x:right;--origin-y:center;
+    position:absolute;left:16px;right:90px;top:50%;
+    width:300px;max-width:300px;margin-left:auto;background:var(--card);border-radius:18px;padding:20px 22px;
+    overflow-wrap:break-word;word-break:normal;min-width:0;
+    max-height:none;overflow:visible;
     display:block;visibility:hidden;opacity:0;pointer-events:none;
-    transform:translate(var(--out-x), var(--out-y));
+    transform-origin:var(--origin-x) var(--origin-y);
+    transform:translate(var(--out-x), var(--out-y)) scale(var(--card-zoom, 1));
     transition:opacity .18s ease-out,transform .18s ease-out,visibility 0s linear .18s,top .5s cubic-bezier(.22,1,.36,1),left .5s cubic-bezier(.22,1,.36,1);
   }
   #card.show{
     visibility:visible;opacity:1;pointer-events:auto;
-    transform:none;
+    transform:scale(var(--card-zoom, 1));
     transition:opacity .42s cubic-bezier(.22,1,.36,1),transform .42s cubic-bezier(.22,1,.36,1),visibility 0s,top .5s cubic-bezier(.22,1,.36,1),left .5s cubic-bezier(.22,1,.36,1);
   }
-  #card,#tail{zoom:var(--card-zoom,1)}
   #tail{
     position:absolute;right:69px;width:16px;height:36px;background:var(--card);
     clip-path:path('M0 0C0 9 9.28 13.68 16 18C9.28 22.32 0 27 0 36Z');
@@ -98,18 +100,18 @@
   @media (prefers-reduced-motion: reduce){
     #card,#tail,#card.show,#card.show + #tail{transition:none}
   }
-  .c-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-  .c-title{font-size:14px;font-weight:700}
-  .c-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
-  .win{margin-top:10px}
-  .w-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;flex-wrap:wrap;column-gap:8px}
+  .c-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0}
+  .c-title{font-size:14px;font-weight:700;line-height:1.35;white-space:nowrap}
+  .c-sub{font-size:11px;color:var(--muted);margin-bottom:12px}
+  .win{margin-top:12px}
+  .w-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;flex-wrap:wrap;gap:4px 12px}
   .w-label{color:var(--ink);font-weight:600;white-space:nowrap}
-  .w-reset{color:var(--muted);font-size:11px;white-space:nowrap;margin-left:auto} /* wrap as a whole when it does not fit; never break inside a word */
-  .w-track{height:4px;border-radius:2px;background:var(--track);margin:6px 0 4px;overflow:hidden}
+  .w-reset{color:var(--muted);font-size:11px;white-space:nowrap;margin-left:auto}
+  .w-track{height:4px;border-radius:2px;background:var(--track);margin:8px 0 6px;overflow:hidden}
   .w-fill{height:100%;border-radius:2px}
-  .w-used{font-size:11px;color:var(--muted)}
-  .g-head{font-size:12px;font-weight:700;color:var(--ink);margin-top:12px}
-  .g-box{border:1px solid var(--stroke);border-radius:10px;padding:0 10px 8px;margin-top:6px}
+  .w-used{font-size:11px;color:var(--muted);line-height:1.4}
+  .g-head{font-size:12px;font-weight:700;color:var(--ink);margin-top:14px;line-height:1.35}
+  .g-box{border:1px solid var(--stroke);border-radius:12px;padding:4px 14px 12px;margin-top:8px}
   .c-note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:6px}
   .c-sessions{margin-top:12px;border-top:1px solid var(--stroke);padding-top:8px}
   .s-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);padding:2px 0}
@@ -128,7 +130,7 @@
 
   body[data-edge="left"] #notch{right:auto;left:0}
   body[data-edge="left"] #chrome{right:auto;left:0}
-  body[data-edge="left"] #card{left:84px;right:10px;margin-left:0;margin-right:auto;--out-x:-16px;--out-y:0px}
+  body[data-edge="left"] #card{left:90px;right:16px;margin-left:0;margin-right:auto;--out-x:-16px;--out-y:0px;--origin-x:left;--origin-y:center}
   body[data-edge="left"] #tail{right:auto;left:69px;clip-path:path('M16 0C16 9 6.72 13.68 0 18C6.72 22.32 16 27 16 36Z')}
 
   body[data-edge="top"] #notch,body[data-edge="bottom"] #notch{
@@ -142,11 +144,11 @@
   body[data-edge="top"] #chrome{top:0;right:auto;left:calc(-1 * var(--fillet))}
   body[data-edge="bottom"] #chrome{top:auto;bottom:0;right:auto;left:calc(-1 * var(--fillet))}
   body[data-edge="top"] #card,body[data-edge="bottom"] #card{
-    left:8px;right:auto;top:0;margin-left:0;
-    width:246px;max-height:calc(100% / var(--card-zoom, 1) - 150px);
+    left:16px;right:auto;top:0;margin-left:0;
+    width:300px;max-width:300px;max-height:none;
   }
-  body[data-edge="top"] #card{--out-x:0px;--out-y:-14px}
-  body[data-edge="bottom"] #card{--out-x:0px;--out-y:14px}
+  body[data-edge="top"] #card{--out-x:0px;--out-y:-14px;--origin-x:center;--origin-y:top}
+  body[data-edge="bottom"] #card{--out-x:0px;--out-y:14px;--origin-x:center;--origin-y:bottom}
   body[data-edge="top"] #tail,body[data-edge="bottom"] #tail{right:auto;width:36px;height:16px}
   body[data-edge="top"] #tail{clip-path:path('M0 16C9 16 13.68 6.72 18 0C22.32 6.72 27 16 36 16Z')}
   body[data-edge="bottom"] #tail{clip-path:path('M0 0C9 0 13.68 9.28 18 16C22.32 9.28 27 0 36 0Z')}
@@ -234,14 +236,16 @@ function applyAppearance(){
 }
 function readAppearance(v){
   if(!v||typeof v!=='object') return;
-  appearance={
+  const next={
     accent_color:v.accent_color||v.accentColor||'system',
     surface_style:v.surface_style||v.surfaceStyle||'solid'
   };
+  const accentChanged=next.accent_color!==appearance.accent_color;
+  appearance=next;
   applyAppearance();
-  if(typeof renderRing==='function') renderRing();
+  if(accentChanged && typeof renderRing==='function') renderRing();
   const shown=document.getElementById('card');
-  if(typeof renderCard==='function' && shown && shown.classList.contains('show')) renderCard();
+  if(accentChanged && typeof renderCard==='function' && shown && shown.classList.contains('show')) renderCard();
 }
 applyAppearance();
 let dockScale=1, cardScale=1;
@@ -249,9 +253,7 @@ function cardZoom(){ return Math.max(0.25, cardScale/Math.max(0.01, dockScale));
 function cardRoom(){ return Math.max(cardZoom(), 1); }
 function applyCardZoom(){
   document.documentElement.style.setProperty('--card-zoom', String(cardZoom()));
-  if(typeof fitZoom==='function') fitZoom();
   if(typeof placeCard==='function' && typeof card!=='undefined' && card && card.classList.contains('show')) placeCard();
-  if(typeof reportHot==='function') reportHot();
 }
 function readScales(v){
   if(!v||typeof v!=='object') return;
@@ -1064,7 +1066,7 @@ function armWatchdog(){
 // The design width is the window's, and the window is not the same shape on every edge — see
 // `notch_window_size` in main.rs: NOTCH_W upright, NOTCH_H lying flat. Dividing by 360 on a flat edge
 // read the wider window as a DPR error and zoomed the whole notch by 520/360.
-const DESIGN_W_UPRIGHT=360, DESIGN_W_FLAT=520;
+const DESIGN_W_UPRIGHT=440, DESIGN_W_FLAT=640;
 function designWidth(){ return (edgeIsVertical()?DESIGN_W_UPRIGHT:DESIGN_W_FLAT)*cardRoom(); }
 function fitZoom(){
   const z=innerWidth/designWidth();
@@ -1079,7 +1081,7 @@ function reportDpr(){
 // Not measured yet: the width to measure against depends on the edge, and only Rust knows it. The
 // ask is at the bottom of this file and answers in a round trip; measuring first would zoom a flat
 // window by 520/360 for that moment.
-window.addEventListener('resize',()=>{clearTimeout(window._dprT);window._dprT=setTimeout(()=>{paintChrome();reportDpr();reportHot();},120);});
+window.addEventListener('resize',()=>{clearTimeout(window._dprT);window._dprT=setTimeout(()=>{paintChrome();reportHot();},200);});
 matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener('change',reportDpr);
 
 /* Collapse test: no trust in element-level mouseenter/mouseleave/e.target at all —

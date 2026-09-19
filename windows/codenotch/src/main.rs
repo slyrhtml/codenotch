@@ -41,10 +41,10 @@ use tauri::{AppHandle, Emitter, Manager};
 
 /// Logical size of the notch window: the 70 pt pill column on the right plus room for the hover card
 /// and its tail on the left. `fitZoom` in ui/notch.html divides by the same width.
-pub const NOTCH_W: f64 = 360.0;
+pub const NOTCH_W: f64 = 440.0;
 /// Hand-bumped build tag, written to run.log at startup so a log can always be matched to the exe that wrote it.
-pub const BUILD: &str = "r31";
-pub const NOTCH_H: f64 = 520.0; // 300 clipped the card once it held three window blocks plus the session list; 460 clipped Antigravity's two model groups once the reading was stale and an agent was working
+pub const BUILD: &str = "r32";
+pub const NOTCH_H: f64 = 640.0; // Antigravity's two model groups plus Kiro credits need the extra depth; 520 clipped reset copy and used/left
 /// Height of the upright window. Five cells make a 504 px pill; its fillets add 38.7 px at each end
 /// and the settings orb reaches 28.5 px past the far one, so 520 cut both fillets and hid the orb.
 pub const NOTCH_UPRIGHT_H: f64 = 980.0;
@@ -230,11 +230,13 @@ fn work_insets(s: &Screen, x: i32, y: i32, ww: i32, wh: i32) -> [i32; 4] {
 
 /// The last insets pushed to the page, in its CSS px, for a page that asks before it was listening.
 static NOTCH_INSETS: Mutex<[f64; 4]> = Mutex::new([0.0; 4]);
+/// Last size/position/edge actually applied, so a live slider does not resize the same window twice.
+static LAST_PLACE: Mutex<Option<(u32, u32, i32, i32, String)>> = Mutex::new(None);
 
 /// Pins the notch to the configured edge of the configured monitor.
 /// The notch window's logical size for an edge.
 ///
-/// Upright on the left and right, the pill is a column and 360 wide is plenty; its length is what
+/// Upright on the left and right, the pill is a column and the window is as wide as the hover card; its length is what
 /// needs room, hence `NOTCH_UPRIGHT_H`. Lying flat on the top and bottom it is a row: five 56 px
 /// rings, their gaps, the padding, both fillets and the settings orb come to about 506 px, so a
 /// 360 px window clipped the pill once a fifth provider was on. The flat window keeps the full
@@ -248,19 +250,23 @@ pub fn notch_window_size(edge: &str) -> (f64, f64) {
 }
 
 pub fn place_notch(app: &AppHandle) {
+    relocate_notch(app, true);
+}
+
+/// Live settings (scale sliders) skip the disk log and the second resize that used to run
+/// on every tick while the window was still catching up.
+fn place_notch_live(app: &AppHandle) {
+    relocate_notch(app, false);
+}
+
+fn relocate_notch(app: &AppHandle, log: bool) {
     let Some(w) = app.get_webview_window("notch") else {
         return;
     };
     let scale = w.scale_factor().unwrap_or(1.0);
     if let Some(mon) = target_screen(app) {
-        // Two monitors at different scales (150 % and 200 % in practice): the physical size can
-        // end up converted with the *other* monitor's scale factor depending on where the window
-        // is created and then moved, leaving the WebView ~256 logical px wide instead of 340.
-        // So the physical size is pinned straight from mon.scale_factor() before placing the
-        // window; if it still reports a different scale afterwards, it is pinned once more.
         let ms = mon.scale;
         let size = ui_scale(app);
-        // Read here, not with the ratio below, because the window's shape depends on it.
         let edge = {
             let st = app.state::<AppState>();
             let c = st.cfg.lock().unwrap();
@@ -270,55 +276,81 @@ pub fn place_notch(app: &AppHandle) {
         let room = card_room(app);
         width *= room;
         height *= room;
-        // Never taller or wider than the screen: Large on a small, highly scaled display can ask for more
         let target = tauri::PhysicalSize::new(
             ((width * ms * size).round() as u32).min(mon.w.max(1) as u32),
             ((height * ms * size).round() as u32).min(mon.h.max(1) as u32),
         );
-        let _ = w.set_size(target);
-        zoom_notch(&w, ms, size);
-        // Position from the window's measured physical size — deriving it from the scale factor
-        // pushed the window past the right edge at 125 % / 150 % (the ring's right side was clipped).
-        let (ww, wh) = w
-            .outer_size()
-            .map(|s| (s.width as i32, s.height as i32))
-            .unwrap_or((target.width as i32, target.height as i32));
-        // The position along the edge comes from the config (it persists across a drag)
         let ratio = {
             let st = app.state::<AppState>();
             let c = st.cfg.lock().unwrap();
             c.notch_y.clamp(0.0, 1.0)
         };
-        let (x, y) = edge_origin(&mon, &edge, ww, wh, ratio);
-        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
-        let mut placed = (x, y, ww, wh);
-        if w.outer_size().map(|s| s.width != target.width).unwrap_or(false) {
+        let (x, y) = edge_origin(
+            &mon,
+            &edge,
+            target.width as i32,
+            target.height as i32,
+            ratio,
+        );
+        let prev = LAST_PLACE.lock().unwrap().clone();
+        let unchanged = prev.as_ref().is_some_and(|(tw, th, lx, ly, e)| {
+            *tw == target.width && *th == target.height && *lx == x && *ly == y && *e == edge
+        });
+        let edge_changed = prev.as_ref().map(|p| p.4 != edge).unwrap_or(true);
+        if !unchanged {
             let _ = w.set_size(target);
-            let (x, y) = edge_origin(&mon, &edge, target.width as i32, target.height as i32, ratio);
+            zoom_notch(&w, ms, size);
             let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
-            placed = (x, y, target.width as i32, target.height as i32);
+            if log {
+                if w.outer_size().map(|s| s.width != target.width).unwrap_or(false) {
+                    let _ = w.set_size(target);
+                    let (x, y) = edge_origin(
+                        &mon,
+                        &edge,
+                        target.width as i32,
+                        target.height as i32,
+                        ratio,
+                    );
+                    let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+                }
+            }
+            *LAST_PLACE.lock().unwrap() =
+                Some((target.width, target.height, x, y, edge.clone()));
+        } else {
+            zoom_notch(&w, ms, size);
         }
-        // The page mirrors itself for the edge it is on; it cannot know that on its own.
-        let _ = w.emit("notch_edge", &edge);
-        // Nor can it see the taskbar: a card opened near the bottom of a side edge slid under it.
-        // The page is `size` × the monitor scale smaller than the window in CSS px.
+        let placed = (x, y, target.width as i32, target.height as i32);
+        if edge_changed {
+            let _ = w.emit("notch_edge", &edge);
+        }
         let css = (ms * size).max(0.01);
         let insets = work_insets(&mon, placed.0, placed.1, placed.2, placed.3).map(|v| v as f64 / css);
-        *NOTCH_INSETS.lock().unwrap() = insets;
-        let _ = w.emit("notch_insets", insets);
-        // Placement log line: the first thing to check when the notch is not visible. Appended, not
-        // overwritten (#240) — place_notch runs after every drag as well as at startup, and a
-        // truncating write wiped the rest of the session's diagnostic trail on every drag.
-        applog(&format!(
-            "notch placed build={BUILD}: edge={edge} pos=({x},{y}) size=({ww}x{wh}) inner={:?} win_scale={scale} mon_scale={ms} notch_size={size} monitor={:?}=({},{} {}x{}) work={:?} card_insets_css={insets:?}",
-            w.inner_size().map(|s| (s.width, s.height)).unwrap_or((0, 0)),
-            mon.name,
-            mon.x,
-            mon.y,
-            mon.w,
-            mon.h,
-            mon.work
-        ));
+        let insets_changed = {
+            let mut prev = NOTCH_INSETS.lock().unwrap();
+            if *prev == insets {
+                false
+            } else {
+                *prev = insets;
+                true
+            }
+        };
+        if insets_changed {
+            let _ = w.emit("notch_insets", insets);
+        }
+        if log {
+            applog(&format!(
+                "notch placed build={BUILD}: edge={edge} pos=({x},{y}) size=({}x{}) inner={:?} win_scale={scale} mon_scale={ms} notch_size={size} monitor={:?}=({},{} {}x{}) work={:?} card_insets_css={insets:?}",
+                target.width,
+                target.height,
+                w.inner_size().map(|s| (s.width, s.height)).unwrap_or((0, 0)),
+                mon.name,
+                mon.x,
+                mon.y,
+                mon.w,
+                mon.h,
+                mon.work
+            ));
+        }
     }
 }
 
@@ -814,7 +846,7 @@ static ZOOM: Mutex<f64> = Mutex::new(1.0);
 /// The page's devicePixelRatio without that zoom, as last reported; 0 until the page first reports
 static BASE_DPR: Mutex<f64> = Mutex::new(0.0);
 
-/// Keeps the notch page at its designed 360 × 520 CSS px in a window `size` times larger: the
+/// Keeps the notch page at its designed CSS size in a window `size` times larger: the
 /// WebView zooms by `size` on top of whatever brings its DPR back to the monitor's scale, so the
 /// rings, text and hover card scale together, as the Mac's size does.
 fn zoom_notch(w: &tauri::WebviewWindow, monitor_scale: f64, size: f64) {
@@ -1038,15 +1070,17 @@ fn get_scale(app: AppHandle) -> f64 {
 /// Settings' size: a named preset or the custom slider. The notch
 /// window is resized and zoomed around its centre.
 #[tauri::command]
-fn set_scale(app: AppHandle, scale: f64) -> f64 {
+fn set_scale(app: AppHandle, scale: f64, persist: Option<bool>) -> f64 {
     let value = {
         let st = app.state::<AppState>();
         let mut c = st.cfg.lock().unwrap();
         c.scale = config::clamp_scale(scale);
-        config::save(&c);
+        if persist.unwrap_or(true) {
+            config::save(&c);
+        }
         c.scale
     };
-    place_notch(&app);
+    place_notch_live(&app);
     emit_scales(&app);
     value
 }
@@ -1058,15 +1092,17 @@ fn get_card_scale(app: AppHandle) -> f64 {
 
 /// How large the hover card opens, independent of the dock.
 #[tauri::command]
-fn set_card_scale(app: AppHandle, card_scale: f64) -> f64 {
+fn set_card_scale(app: AppHandle, card_scale: f64, persist: Option<bool>) -> f64 {
     let value = {
         let st = app.state::<AppState>();
         let mut c = st.cfg.lock().unwrap();
         c.card_scale = config::clamp_card_scale(card_scale);
-        config::save(&c);
+        if persist.unwrap_or(true) {
+            config::save(&c);
+        }
         c.card_scale
     };
-    place_notch(&app);
+    place_notch_live(&app);
     emit_scales(&app);
     value
 }
