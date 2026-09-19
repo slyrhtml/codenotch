@@ -286,7 +286,7 @@ fn account_of(id: &str) -> Option<ProviderAccount> {
         "claude" => account(claude_email(), claude_plan(), "Claude Code"),
         "kiro" => {
             let source = if crate::kiro::locate_binary().is_some() { "Kiro CLI" } else { "Kiro" };
-            account(crate::kiro::ide_account_email(), None, source).or_else(|| {
+            account(crate::kiro::ide_account_label(), None, source).or_else(|| {
                 crate::kiro::present().then(|| ProviderAccount {
                     label: None,
                     plan: None,
@@ -452,16 +452,16 @@ fn sign_in_of(id: &str) -> SignInInfo {
         ),
         "kiro" => {
             let app = crate::kiro::locate_app().is_some();
-            let cli = crate::kiro::locate_binary().is_some();
+            let signed = crate::kiro::ide_account_label().is_some() || crate::kiro::present();
             (
                 if app { "openApp" } else { "guidance" },
-                Some("Sign in with Kiro".into()),
-                if app {
-                    "Opens Kiro so you can sign in. The notch attaches that account; usage rings also follow kiro-cli login when the CLI is installed.".into()
+                Some(if signed && crate::kiro::ide_account_label().is_some() {
+                    "Open Kiro".into()
                 } else {
-                    "Install Kiro, or run `kiro-cli login` — Codenotch borrows that session.".into()
-                },
-                app || cli,
+                    "Sign in with Kiro".into()
+                }),
+                "Opens Kiro. Codenotch attaches the session the IDE already keeps.".into(),
+                app || crate::kiro::locate_binary().is_some(),
                 "Switch accounts in Kiro; the notch follows.".into(),
             )
         }

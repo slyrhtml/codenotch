@@ -69,6 +69,50 @@ pub fn locate_app() -> Option<PathBuf> {
     cands.into_iter().find(|p| p.is_file())
 }
 
+/// The Kiro IDE files its signed-in session here — not in kiro-cli sqlite.
+fn ide_token_path() -> Option<PathBuf> {
+    poll::home().map(|h| h.join(".aws").join("sso").join("cache").join("kiro-auth-token.json"))
+}
+
+struct IdeSession {
+    access_token: String,
+    profile_arn: String,
+    provider: Option<String>,
+    expires_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+fn ide_session() -> Option<IdeSession> {
+    let v = poll::json_object(&ide_token_path()?)?;
+    let access_token = poll::non_empty(v.get("accessToken").or_else(|| v.get("access_token")).and_then(|x| x.as_str()))?;
+    let profile_arn = poll::non_empty(v.get("profileArn").or_else(|| v.get("profile_arn")).and_then(|x| x.as_str()))?;
+    let provider = poll::non_empty(v.get("provider").and_then(|x| x.as_str()));
+    let expires_at = v
+        .get("expiresAt")
+        .or_else(|| v.get("expires_at"))
+        .and_then(|x| x.as_str())
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|d| d.with_timezone(&chrono::Utc));
+    Some(IdeSession { access_token, profile_arn, provider, expires_at })
+}
+
+/// Label for Settings: JWT email if the access token carries one, else the IdP name.
+pub fn ide_account_label() -> Option<String> {
+    ide_account_email()
+        .or_else(|| ide_session().and_then(|s| s.provider))
+}
+
+fn jwt_email(token: &str) -> Option<String> {
+    let part = token.split('.').nth(1)?;
+    let raw = crate::antigravity::b64_decode(part)?;
+    let claims: serde_json::Value = serde_json::from_slice(&raw).ok()?;
+    for pointer in ["/email", "/emailAddress", "/preferred_username"] {
+        if let Some(s) = claims.pointer(pointer).and_then(|x| x.as_str()).map(str::trim).filter(|s| s.contains('@')) {
+            return Some(s.to_string());
+        }
+    }
+    None
+}
+
 fn ide_store() -> Option<PathBuf> {
     dirs::config_dir().map(|c| c.join("Kiro").join("User").join("globalStorage").join("state.vscdb"))
 }
@@ -123,6 +167,11 @@ fn load_access_token(database: &PathBuf) -> Option<String> {
 
 /// Email the Kiro IDE cached for its own account row, if any.
 pub fn ide_account_email() -> Option<String> {
+    if let Some(s) = ide_session() {
+        if let Some(email) = jwt_email(&s.access_token) {
+            return Some(email);
+        }
+    }
     let path = ide_store()?;
     let conn = crate::cursor::open_item_db(&path)?;
     let mut stmt = conn.prepare("SELECT key, value FROM ItemTable").ok()?;
@@ -165,6 +214,7 @@ pub fn present() -> bool {
     locate_binary().is_some()
         || locate_app().is_some()
         || has_cli_token()
+        || ide_session().is_some()
         || ide_store().map(|p| p.is_file()).unwrap_or(false)
         || poll::home().map(|h| h.join(".kiro").join("sessions").is_dir()).unwrap_or(false)
 }
@@ -172,9 +222,17 @@ pub fn present() -> bool {
 pub fn probe() -> String {
     let cli = locate_binary().map(|p| format!("CLI {}", p.display()));
     let app = locate_app().map(|p| format!("IDE {}", p.display()));
+    let ide = ide_session().map(|s| {
+        let state = if s.expires_at.map(|e| e <= chrono::Utc::now()).unwrap_or(false) {
+            "expired"
+        } else {
+            "signed in"
+        };
+        format!("IDE session ({state})")
+    });
     let token = has_cli_token().then_some("kiro-cli session".to_string());
-    let email = ide_account_email().map(|e| format!("account {e}"));
-    let bits: Vec<String> = [cli, app, token, email].into_iter().flatten().collect();
+    let email = ide_account_label().map(|e| format!("account {e}"));
+    let bits: Vec<String> = [cli, app, ide, token, email].into_iter().flatten().collect();
     if bits.is_empty() {
         "Kiro: IDE and kiro-cli not found".into()
     } else {
@@ -311,6 +369,197 @@ fn plan_name(text: &str) -> Option<String> {
     None
 }
 
+struct CreditLimits {
+    plan_used: f64,
+    plan_limit: f64,
+    overage_used: f64,
+    overage_cap: Option<f64>,
+    reset_at: Option<u64>,
+    plan: Option<String>,
+    has_unseparated_bonus: bool,
+}
+
+fn endpoint_for_arn(arn: &str) -> Option<String> {
+    if arn.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return None;
+    }
+    let parts: Vec<&str> = arn.splitn(6, ':').collect();
+    if parts.len() != 6
+        || parts[0] != "arn"
+        || parts[1] != "aws"
+        || parts[2] != "codewhisperer"
+        || parts[4].is_empty()
+        || !parts[5].starts_with("profile/")
+        || parts[5].len() <= "profile/".len()
+    {
+        return None;
+    }
+    match parts[3] {
+        "us-east-1" => Some("https://codewhisperer.us-east-1.amazonaws.com/".into()),
+        "eu-central-1" => Some("https://q.eu-central-1.amazonaws.com/".into()),
+        _ => None,
+    }
+}
+
+fn first_number(obj: &serde_json::Value, keys: &[&str]) -> Option<f64> {
+    for k in keys {
+        if let Some(n) = poll::as_f64(obj.get(*k)) {
+            return Some(n);
+        }
+    }
+    None
+}
+
+fn usable(value: f64) -> Option<f64> {
+    if value.is_finite() && value >= 0.0 {
+        Some(value)
+    } else {
+        None
+    }
+}
+
+/// Unix seconds in 2001–2100. Milliseconds land outside this and are dropped.
+fn reset_unix_ms(value: f64) -> Option<u64> {
+    if value.is_finite() && (1_000_000_000.0..=4_102_444_800.0).contains(&value) {
+        Some((value * 1000.0) as u64)
+    } else {
+        None
+    }
+}
+
+fn parse_limits(v: &serde_json::Value) -> Result<CreditLimits, String> {
+    let list = v.get("usageBreakdownList").and_then(|x| x.as_array()).ok_or("badResponse")?;
+    let credits: Vec<&serde_json::Value> = list.iter().filter(|row| row.get("resourceType").and_then(|x| x.as_str()) == Some("CREDIT")).collect();
+    let credit = *credits.first().ok_or("badResponse")?;
+    if credits.len() != 1 {
+        return Err("badResponse".into());
+    }
+    let plan_limit = usable(first_number(credit, &["usageLimitWithPrecision", "usageLimit"]).ok_or("badResponse")?).ok_or("badResponse")?;
+    let total_used = usable(first_number(credit, &["currentUsageWithPrecision", "currentUsage"]).ok_or("badResponse")?).ok_or("badResponse")?;
+    let overage_used = usable(first_number(credit, &["currentOveragesWithPrecision", "currentOverages"]).unwrap_or(0.0)).ok_or("badResponse")?;
+    if total_used < overage_used {
+        return Err("badResponse".into());
+    }
+    let plan_used = total_used - overage_used;
+    let has_unseparated_bonus = credit.get("bonuses").and_then(|x| x.as_array()).map(|a| !a.is_empty()).unwrap_or(false);
+    if !has_unseparated_bonus && plan_used > plan_limit {
+        return Err("badResponse".into());
+    }
+    let status = v
+        .pointer("/overageConfiguration/overageStatus")
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_ascii_uppercase());
+    let availability = match status.as_deref() {
+        Some("ENABLED") => Some(true),
+        Some("DISABLED") => Some(false),
+        _ => None,
+    };
+    let overage_cap = if availability == Some(true) {
+        first_number(credit, &["overageCapWithPrecision", "overageCap"]).and_then(usable)
+    } else {
+        None
+    };
+    let reset = first_number(credit, &["nextDateReset"])
+        .or_else(|| first_number(v, &["nextDateReset"]))
+        .and_then(reset_unix_ms);
+    let plan = v
+        .pointer("/subscriptionInfo/subscriptionTitle")
+        .and_then(|x| x.as_str())
+        .map(display_plan);
+    Ok(CreditLimits {
+        plan_used,
+        plan_limit,
+        overage_used,
+        overage_cap,
+        reset_at: reset,
+        plan,
+        has_unseparated_bonus,
+    })
+}
+
+fn windows_from_limits(limits: &CreditLimits) -> Vec<LimitWindow> {
+    let mut windows = Vec::new();
+    if limits.plan_limit > 0.0 && !limits.has_unseparated_bonus {
+        windows.push(LimitWindow {
+            id: "credits".into(),
+            label: "Credits".into(),
+            used: (limits.plan_used / limits.plan_limit).clamp(0.0, 1.0),
+            resets_at: limits.reset_at,
+            ..Default::default()
+        });
+    } else if limits.plan_limit > 0.0 {
+        windows.push(LimitWindow {
+            id: "credits".into(),
+            label: "Credits".into(),
+            used: (limits.plan_used / limits.plan_limit).clamp(0.0, 1.0),
+            resets_at: limits.reset_at,
+            ..Default::default()
+        });
+    }
+    if let Some(cap) = limits.overage_cap {
+        if cap > 0.0 {
+            windows.push(LimitWindow {
+                id: "overage".into(),
+                label: "Overage".into(),
+                used: (limits.overage_used / cap).clamp(0.0, 1.0),
+                resets_at: limits.reset_at,
+                ..Default::default()
+            });
+        }
+    }
+    windows
+}
+
+fn fetch_limits(session: &IdeSession) -> Result<CreditLimits, poll::FetchErr> {
+    let url = endpoint_for_arn(&session.profile_arn).ok_or_else(|| poll::FetchErr::Other("unsupported Kiro profile region".into()))?;
+    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(10)).build();
+    let body = serde_json::json!({ "profileArn": session.profile_arn });
+    match agent
+        .post(&url)
+        .set("Content-Type", "application/x-amz-json-1.0")
+        .set("X-Amz-Target", "AmazonCodeWhispererService.GetUsageLimits")
+        .set("Authorization", &format!("Bearer {}", session.access_token))
+        .send_json(body)
+    {
+        Ok(r) => {
+            let v: serde_json::Value = r.into_json().map_err(|e| poll::FetchErr::Other(format!("parse: {e}")))?;
+            parse_limits(&v).map_err(|e| poll::FetchErr::Other(e))
+        }
+        Err(ureq::Error::Status(401, _)) | Err(ureq::Error::Status(403, _)) => Err(poll::FetchErr::NeedsAuth),
+        Err(ureq::Error::Status(429, _)) => Err(poll::FetchErr::RateLimited),
+        Err(ureq::Error::Status(code, _)) => Err(poll::FetchErr::Other(format!("HTTP {code}"))),
+        Err(e) => Err(poll::FetchErr::Other(format!("{e}"))),
+    }
+}
+
+fn apply_ide(prev: &UsageSnapshot, session: &IdeSession) -> UsageSnapshot {
+    if session.expires_at.map(|e| e <= chrono::Utc::now()).unwrap_or(false) {
+        return UsageSnapshot {
+            status: "needsAuth".into(),
+            note: "Open Kiro so it can refresh the session Codenotch reads.".into(),
+            windows: prev.windows.clone(),
+            fetched_at: prev.fetched_at,
+            ..prev.clone()
+        };
+    }
+    match fetch_limits(session) {
+        Ok(limits) => {
+            let windows = windows_from_limits(&limits);
+            let note = match &limits.plan {
+                Some(p) => format!("{p} · via Kiro"),
+                None => "via Kiro".into(),
+            };
+            poll::apply_fetch(prev, Ok((windows, note)), "", "")
+        }
+        Err(e) => poll::apply_fetch(
+            prev,
+            Err(e),
+            "Open Kiro so it can refresh the session Codenotch reads.",
+            "Kiro usage is rate limited — try again shortly.",
+        ),
+    }
+}
+
 fn display_plan(raw: &str) -> String {
     raw.split_whitespace()
         .map(|word| {
@@ -413,9 +662,12 @@ fn run_usage(bin: &PathBuf) -> Result<String, String> {
 fn read_once(prev: &UsageSnapshot) -> UsageSnapshot {
     let mut snap = prev.clone();
     let Some(bin) = locate_binary() else {
+        if let Some(session) = ide_session() {
+            return apply_ide(prev, &session);
+        }
         if present() {
             snap.status = "needsAuth".into();
-            snap.note = "Open Kiro and sign in. Usage rings need kiro-cli login — Codenotch will attach the session once it is there.".into();
+            snap.note = "Open Kiro and sign in — Codenotch borrows that session.".into();
         } else {
             snap.status = "absent".into();
             snap.note = "Kiro is not installed".into();
@@ -474,5 +726,62 @@ mod tests {
     #[test]
     fn login_required_is_auth() {
         assert_eq!(parse_cli("Error: not logged in").unwrap_err(), "needsAuth");
+    }
+
+    #[test]
+    fn regional_endpoints_follow_the_profile_arn() {
+        assert_eq!(
+            endpoint_for_arn("arn:aws:codewhisperer:us-east-1:123456789012:profile/test").as_deref(),
+            Some("https://codewhisperer.us-east-1.amazonaws.com/")
+        );
+        assert_eq!(
+            endpoint_for_arn("arn:aws:codewhisperer:eu-central-1:123456789012:profile/test").as_deref(),
+            Some("https://q.eu-central-1.amazonaws.com/")
+        );
+        assert!(endpoint_for_arn("arn:aws:codewhisperer:ap-southeast-1:123456789012:profile/test").is_none());
+        assert!(endpoint_for_arn("arn:aws:codewhisperer:us-east-1:123456789012:profile/test ").is_none());
+    }
+
+    #[test]
+    fn get_usage_limits_splits_overage_from_plan() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{
+              "nextDateReset": 1788220800,
+              "overageConfiguration": {"overageStatus": "ENABLED"},
+              "subscriptionInfo": {"subscriptionTitle": "KIRO POWER"},
+              "usageBreakdownList": [{
+                "resourceType": "CREDIT",
+                "currentUsageWithPrecision": 13603.49,
+                "usageLimitWithPrecision": 10000.0,
+                "currentOveragesWithPrecision": 3603.49,
+                "overageCapWithPrecision": 10000.0,
+                "bonuses": []
+              }]
+            }"#,
+        )
+        .unwrap();
+        let limits = parse_limits(&v).unwrap();
+        assert!((limits.plan_used - 10000.0).abs() < 1e-9);
+        assert!((limits.plan_limit - 10000.0).abs() < 1e-9);
+        assert!((limits.overage_used - 3603.49).abs() < 1e-9);
+        assert_eq!(limits.overage_cap, Some(10000.0));
+        assert_eq!(limits.reset_at, Some(1_788_220_800_000));
+        assert_eq!(limits.plan.as_deref(), Some("Kiro Power"));
+        let windows = windows_from_limits(&limits);
+        assert_eq!(windows[0].id, "credits");
+        assert!((windows[0].used - 1.0).abs() < 1e-9);
+        assert_eq!(windows[1].id, "overage");
+    }
+
+    #[test]
+    fn two_credit_rows_are_rejected() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{"usageBreakdownList":[
+              {"resourceType":"CREDIT","currentUsageWithPrecision":1,"usageLimitWithPrecision":10},
+              {"resourceType":"CREDIT","currentUsageWithPrecision":2,"usageLimitWithPrecision":20}
+            ]}"#,
+        )
+        .unwrap();
+        assert!(parse_limits(&v).is_err());
     }
 }
