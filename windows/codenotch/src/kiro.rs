@@ -20,22 +20,132 @@ pub fn load_persisted() -> UsageSnapshot {
     poll::load_persisted("kiro")
 }
 
-fn locate_binary() -> Option<PathBuf> {
+pub fn locate_binary() -> Option<PathBuf> {
     if let Some(p) = poll::env_nonempty("KIRO_CLI_PATH") {
         let path = PathBuf::from(p);
         if path.is_file() {
             return Some(path);
         }
-    }
-    if let Ok(p) = which("kiro-cli") {
-        return Some(p);
+        return None;
     }
     let mut cands = Vec::new();
     if let Some(h) = poll::home() {
         cands.push(h.join(".local").join("bin").join("kiro-cli.exe"));
         cands.push(h.join(".local").join("bin").join("kiro-cli"));
     }
+    if let Some(d) = dirs::data_local_dir() {
+        cands.push(d.join("kiro-cli").join("kiro-cli.exe"));
+        cands.push(d.join("Programs").join("Kiro CLI").join("kiro-cli.exe"));
+        cands.push(d.join("Programs").join("kiro-cli").join("kiro-cli.exe"));
+    }
+    if let Some(d) = dirs::config_dir() {
+        cands.push(d.join("npm").join("kiro-cli.cmd"));
+        cands.push(d.join("kiro-cli").join("kiro-cli.exe"));
+    }
+    if let Ok(p) = which("kiro-cli") {
+        cands.push(p);
+    }
     cands.into_iter().find(|p| p.is_file())
+}
+
+/// The Kiro IDE itself — most Windows installs are this, not a separate `kiro-cli`.
+pub fn locate_app() -> Option<PathBuf> {
+    let mut cands = Vec::new();
+    if let Some(d) = dirs::data_local_dir() {
+        cands.push(d.join("Programs").join("Kiro").join("Kiro.exe"));
+        cands.push(d.join("Programs").join("Kiro").join("bin").join("kiro.exe"));
+        cands.push(d.join("Programs").join("Kiro").join("bin").join("kiro.cmd"));
+        cands.push(d.join("Kiro").join("Kiro.exe"));
+    }
+    if let Some(pf) = std::env::var_os("ProgramFiles") {
+        cands.push(PathBuf::from(pf).join("Kiro").join("Kiro.exe"));
+    }
+    if let Some(pf) = std::env::var_os("ProgramFiles(x86)") {
+        cands.push(PathBuf::from(pf).join("Kiro").join("Kiro.exe"));
+    }
+    if let Ok(p) = which("kiro") {
+        cands.push(p);
+    }
+    cands.into_iter().find(|p| p.is_file())
+}
+
+fn ide_store() -> Option<PathBuf> {
+    dirs::config_dir().map(|c| c.join("Kiro").join("User").join("globalStorage").join("state.vscdb"))
+}
+
+fn state_databases() -> Vec<PathBuf> {
+    let mut v = Vec::new();
+    if let Some(dir) = poll::env_nonempty("KIRO_DATA_DIR") {
+        v.push(PathBuf::from(dir).join("data.sqlite3"));
+    }
+    if let Some(d) = dirs::config_dir() {
+        v.push(d.join("kiro-cli").join("data.sqlite3"));
+    }
+    if let Some(d) = dirs::data_local_dir() {
+        v.push(d.join("kiro-cli").join("data.sqlite3"));
+    }
+    if let Some(h) = poll::home() {
+        v.push(h.join(".kiro-cli").join("data.sqlite3"));
+        v.push(h.join("AppData").join("Roaming").join("kiro-cli").join("data.sqlite3"));
+    }
+    v
+}
+
+fn has_cli_token() -> bool {
+    state_databases().iter().any(|p| load_access_token(p).is_some())
+}
+
+fn open_sqlite(path: &PathBuf) -> Option<rusqlite::Connection> {
+    use rusqlite::OpenFlags;
+    if !path.is_file() {
+        return None;
+    }
+    rusqlite::Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .ok()
+}
+
+fn load_access_token(database: &PathBuf) -> Option<String> {
+    let conn = open_sqlite(database)?;
+    conn.query_row(
+        "SELECT value FROM auth_kv WHERE key = ?1",
+        ["kirocli:odic:token"],
+        |r| r.get::<_, String>(0),
+    )
+    .ok()
+    .and_then(|raw| {
+        let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
+        poll::non_empty(v.get("access_token").or_else(|| v.get("accessToken")).and_then(|x| x.as_str()))
+    })
+}
+
+/// Email the Kiro IDE cached for its own account row, if any.
+pub fn ide_account_email() -> Option<String> {
+    let path = ide_store()?;
+    let conn = crate::cursor::open_item_db(&path)?;
+    let mut stmt = conn.prepare("SELECT key, value FROM ItemTable").ok()?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))).ok()?;
+    for row in rows.flatten() {
+        let (key, value) = row;
+        let k = key.to_ascii_lowercase();
+        if !(k.contains("auth") || k.contains("account") || k.contains("user") || k.contains("email") || k.contains("kiro")) {
+            continue;
+        }
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&value) {
+            for pointer in ["/email", "/emailAddress", "/user/email", "/account/email", "/cachedEmail"] {
+                if let Some(email) = v.pointer(pointer).and_then(|x| x.as_str()).map(str::trim).filter(|s| s.contains('@')) {
+                    return Some(email.to_string());
+                }
+            }
+        }
+        let trimmed = value.trim();
+        if trimmed.contains('@') && !trimmed.contains(' ') && trimmed.len() < 200 {
+            return Some(trimmed.to_string());
+        }
+    }
+    None
 }
 
 fn which(name: &str) -> Result<PathBuf, ()> {
@@ -53,12 +163,22 @@ fn which(name: &str) -> Result<PathBuf, ()> {
 
 pub fn present() -> bool {
     locate_binary().is_some()
+        || locate_app().is_some()
+        || has_cli_token()
+        || ide_store().map(|p| p.is_file()).unwrap_or(false)
+        || poll::home().map(|h| h.join(".kiro").join("sessions").is_dir()).unwrap_or(false)
 }
 
 pub fn probe() -> String {
-    match locate_binary() {
-        Some(p) => format!("Kiro: CLI at {}", p.display()),
-        None => "Kiro: kiro-cli not found (PATH, ~/.local/bin, or KIRO_CLI_PATH)".into(),
+    let cli = locate_binary().map(|p| format!("CLI {}", p.display()));
+    let app = locate_app().map(|p| format!("IDE {}", p.display()));
+    let token = has_cli_token().then_some("kiro-cli session".to_string());
+    let email = ide_account_email().map(|e| format!("account {e}"));
+    let bits: Vec<String> = [cli, app, token, email].into_iter().flatten().collect();
+    if bits.is_empty() {
+        "Kiro: IDE and kiro-cli not found".into()
+    } else {
+        format!("Kiro: {}", bits.join("; "))
     }
 }
 
@@ -293,8 +413,13 @@ fn run_usage(bin: &PathBuf) -> Result<String, String> {
 fn read_once(prev: &UsageSnapshot) -> UsageSnapshot {
     let mut snap = prev.clone();
     let Some(bin) = locate_binary() else {
-        snap.status = "absent".into();
-        snap.note = "Kiro CLI is not installed".into();
+        if present() {
+            snap.status = "needsAuth".into();
+            snap.note = "Open Kiro and sign in. Usage rings need kiro-cli login — Codenotch will attach the session once it is there.".into();
+        } else {
+            snap.status = "absent".into();
+            snap.note = "Kiro is not installed".into();
+        }
         return snap;
     };
     match run_usage(&bin) {

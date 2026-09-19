@@ -129,13 +129,39 @@ fn spawn_detached(program: &Path, args: &[&str]) -> bool {
 
 fn open_terminal(cmdline: &str) -> bool {
     let mut cmd = std::process::Command::new("cmd");
-    cmd.args(["/C", "start", "Codenotch", "cmd", "/K", cmdline]);
+    cmd.args(["/C", "start", "Codenotch sign-in", "cmd", "/K", cmdline]);
+    if let Some(h) = home() {
+        cmd.current_dir(h);
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000);
+        // CREATE_NEW_CONSOLE — login is interactive; CREATE_NO_WINDOW hides the prompt.
+        cmd.creation_flags(0x0000_0010);
     }
     cmd.spawn().is_ok()
+}
+
+fn open_cli(bin: &Path, args: &[&str]) -> bool {
+    let quoted = format!("\"{}\"", bin.display());
+    let rest = args.join(" ");
+    let line = match bin.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()) {
+        Some(ext) if ext == "cmd" || ext == "bat" => {
+            if rest.is_empty() {
+                format!("call {quoted}")
+            } else {
+                format!("call {quoted} {rest}")
+            }
+        }
+        _ => {
+            if rest.is_empty() {
+                quoted
+            } else {
+                format!("{quoted} {rest}")
+            }
+        }
+    };
+    open_terminal(&line)
 }
 
 #[cfg(windows)]
@@ -258,6 +284,17 @@ fn grok_account() -> Option<ProviderAccount> {
 fn account_of(id: &str) -> Option<ProviderAccount> {
     match id {
         "claude" => account(claude_email(), claude_plan(), "Claude Code"),
+        "kiro" => {
+            let source = if crate::kiro::locate_binary().is_some() { "Kiro CLI" } else { "Kiro" };
+            account(crate::kiro::ide_account_email(), None, source).or_else(|| {
+                crate::kiro::present().then(|| ProviderAccount {
+                    label: None,
+                    plan: None,
+                    source: source.into(),
+                    summary: format!("via {source}"),
+                })
+            })
+        }
         "cursor" => cursor_account(),
         "codex" => codex_account(),
         "grok" => grok_account(),
@@ -313,18 +350,17 @@ fn present(id: &str) -> bool {
 }
 
 fn visible_when_absent(id: &str) -> bool {
-    !matches!(id, "ollama-local" | "lmstudio" | "kiro")
+    !matches!(id, "ollama-local" | "lmstudio")
 }
 
 fn sign_in_of(id: &str) -> SignInInfo {
     let (kind, title, explanation, can_open, switch_hint) = match id {
         "claude" => {
-            let cli = which("claude").is_some();
             (
                 "guidance",
-                cli.then_some("Sign in with Claude Code".into()),
-                "Run `claude` once — it signs in and is what these readings come from. Use /login there to change account.".into(),
-                cli,
+                Some("Sign in with Claude Code".into()),
+                "Opens a terminal and runs Claude Code login. That session is what these readings come from. Use /login there to change account.".into(),
+                true,
                 "Switch accounts in Claude Code; the notch follows.".into(),
             )
         }
@@ -415,12 +451,17 @@ fn sign_in_of(id: &str) -> SignInInfo {
             "Switch accounts in Kimi; the notch follows.".into(),
         ),
         "kiro" => {
-            let cli = which("kiro-cli").is_some();
+            let app = crate::kiro::locate_app().is_some();
+            let cli = crate::kiro::locate_binary().is_some();
             (
-                "guidance",
-                cli.then_some("Sign in with Kiro".into()),
-                "Run `kiro-cli login` once — it signs in and is what these readings come from.".into(),
-                cli,
+                if app { "openApp" } else { "guidance" },
+                Some("Sign in with Kiro".into()),
+                if app {
+                    "Opens Kiro so you can sign in. The notch attaches that account; usage rings also follow kiro-cli login when the CLI is installed.".into()
+                } else {
+                    "Install Kiro, or run `kiro-cli login` — Codenotch borrows that session.".into()
+                },
+                app || cli,
                 "Switch accounts in Kiro; the notch follows.".into(),
             )
         }
@@ -542,7 +583,15 @@ pub fn emit(app: &AppHandle) {
 /// Open the owning tool (or its login command), then refresh that provider.
 pub fn sign_in(app: &AppHandle, id: &str) -> bool {
     let opened = match id {
-        "claude" => which("claude").map(|p| open_terminal(&format!("\"{}\"", p.display()))).unwrap_or(false),
+        "claude" => {
+            if let Some(p) = crate::usage::find_cli() {
+                open_cli(&p, &["auth", "login"]) || open_cli(&p, &[])
+            } else if let Some(npx) = crate::usage::find_npx() {
+                open_cli(&npx, &["--yes", "@anthropic-ai/claude-code", "auth", "login"])
+            } else {
+                open_terminal("echo Install Claude Code, then run: claude auth login")
+            }
+        }
         "codex" => app_exe(&["Codex", "Codex.exe"])
             .map(|p| spawn_detached(&p, &[]))
             .or_else(|| which("codex").map(|p| open_terminal(&format!("\"{}\" login", p.display()))))
@@ -555,7 +604,18 @@ pub fn sign_in(app: &AppHandle, id: &str) -> bool {
         "grok" => which("grok").map(|p| open_terminal(&format!("\"{}\" login", p.display()))).unwrap_or(false),
         "opencode" => which("opencode").map(|p| open_terminal(&format!("\"{}\" auth login", p.display()))).unwrap_or(false),
         "copilot" => which("gh").map(|p| open_terminal(&format!("\"{}\" auth login", p.display()))).unwrap_or(false),
-        "kiro" => which("kiro-cli").map(|p| open_terminal(&format!("\"{}\" login", p.display()))).unwrap_or(false),
+        "kiro" => {
+            let app = crate::kiro::locate_app()
+                .map(|p| {
+                    match p.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref() {
+                        Some("cmd") | Some("bat") => open_cli(&p, &[]),
+                        _ => spawn_detached(&p, &[]),
+                    }
+                })
+                .unwrap_or(false);
+            let cli = crate::kiro::locate_binary().map(|p| open_cli(&p, &["login"])).unwrap_or(false);
+            app || cli
+        }
         "ollama-local" => ollama_exe().map(|p| spawn_detached(&p, &[])).unwrap_or(false),
         "lmstudio" => lmstudio_exe().map(|p| spawn_detached(&p, &[])).unwrap_or(false),
         _ => false,

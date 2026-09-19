@@ -204,19 +204,41 @@ fn is_desktop_owned(p: &std::path::Path) -> bool {
 }
 
 /// The standalone Claude Code command: its own installer's location first, then global npm/pnpm/Volta, then PATH
-fn find_cli() -> Option<std::path::PathBuf> {
+pub fn find_cli() -> Option<std::path::PathBuf> {
     let mut v = Vec::new();
     if let Some(h) = dirs::home_dir() {
         v.push(h.join(".local").join("bin").join("claude.exe"));
+        v.push(h.join(".local").join("bin").join("claude.cmd"));
     }
     if let Some(d) = dirs::config_dir() {
         v.push(d.join("npm").join("claude.cmd"));
+        v.push(d.join("npm").join("claude.exe"));
     }
     if let Some(d) = dirs::data_local_dir() {
         v.push(d.join("pnpm").join("claude.cmd"));
+        v.push(d.join("pnpm").join("claude.exe"));
     }
     if let Some(h) = dirs::home_dir() {
         v.push(h.join(".volta").join("bin").join("claude.exe"));
+    }
+    // nvm-windows (nvm4w) keeps global bins next to node, which is often off the
+    // GUI app PATH that Explorer hands Codenotch.
+    for extra in [
+        std::env::var_os("NVM_SYMLINK"),
+        std::env::var_os("NVM_HOME"),
+        Some(std::ffi::OsString::from(r"C:\nvm4w\nodejs")),
+        std::env::var_os("ProgramFiles").map(|p| {
+            let mut d = std::path::PathBuf::from(p);
+            d.push("nodejs");
+            d.into_os_string()
+        }),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let dir = std::path::PathBuf::from(extra);
+        v.push(dir.join("claude.exe"));
+        v.push(dir.join("claude.cmd"));
     }
     if let Some(path) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&path) {
@@ -225,6 +247,33 @@ fn find_cli() -> Option<std::path::PathBuf> {
         }
     }
     v.into_iter().find(|p| p.is_file() && !is_desktop_owned(p))
+}
+
+pub fn find_npx() -> Option<std::path::PathBuf> {
+    let mut v = Vec::new();
+    for extra in [
+        std::env::var_os("NVM_SYMLINK"),
+        Some(std::ffi::OsString::from(r"C:\nvm4w\nodejs")),
+        std::env::var_os("ProgramFiles").map(|p| {
+            let mut d = std::path::PathBuf::from(p);
+            d.push("nodejs");
+            d.into_os_string()
+        }),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let dir = std::path::PathBuf::from(extra);
+        v.push(dir.join("npx.cmd"));
+        v.push(dir.join("npx.exe"));
+    }
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            v.push(dir.join("npx.cmd"));
+            v.push(dir.join("npx.exe"));
+        }
+    }
+    v.into_iter().find(|p| p.is_file())
 }
 
 /// Whether a launch is worth making. Pure, so every branch is testable without a clock or a subprocess

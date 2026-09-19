@@ -979,6 +979,9 @@ function accountBlock(p, isOn, locked){
     + ' data-np="' + esc(p.id) + '" aria-label="' + esc(p.label || p.id) + '"></button></div>';
   if(!isOn){
     h += '<div class="acct-detail">' + esc(ui('Signed out — nothing is read, and no readings are kept.', 'Signed out — nothing is read, and no readings are kept.')) + '</div>';
+    if(action && canOpen){
+      h += '<div class="acct-actions"><button type="button" class="btn" data-signin="' + esc(p.id) + '">' + esc(ui(action, action)) + '</button></div>';
+    }
   } else if(acc && (acc.summary || acc.label)){
     h += '<div class="acct-detail">' + esc(acc.summary || [acc.label, acc.plan, acc.source && ('via ' + acc.source)].filter(Boolean).join(' · ')) + '</div>';
     if(canOpen){

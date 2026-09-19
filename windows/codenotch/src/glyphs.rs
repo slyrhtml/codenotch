@@ -206,6 +206,9 @@ fn app_candidates(id: &str) -> Vec<PathBuf> {
         "lmstudio" => {
             v.push(programs.join("LM Studio").join("LM Studio.exe"));
         }
+        "kiro" => {
+            v.push(programs.join("Kiro").join("Kiro.exe"));
+        }
         _ => {}
     }
     v.into_iter().filter(|p| p.is_file()).collect()
