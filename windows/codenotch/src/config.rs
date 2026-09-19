@@ -20,12 +20,23 @@ pub fn snap_scale(scale: f64) -> f64 {
 /// below the Mac's 75 % so a Windows taskbar can keep a much smaller dock.
 pub const SCALE_MIN: f64 = 0.5;
 pub const SCALE_MAX: f64 = 1.5;
+/// Hover-card size, independent of the dock. 75 %–200 % of the designed card.
+pub const CARD_SCALE_MIN: f64 = 0.75;
+pub const CARD_SCALE_MAX: f64 = 2.0;
 
 pub fn clamp_scale(scale: f64) -> f64 {
     if !scale.is_finite() {
         1.0
     } else {
         scale.clamp(SCALE_MIN, SCALE_MAX)
+    }
+}
+
+pub fn clamp_card_scale(scale: f64) -> f64 {
+    if !scale.is_finite() {
+        1.0
+    } else {
+        scale.clamp(CARD_SCALE_MIN, CARD_SCALE_MAX)
     }
 }
 
@@ -65,10 +76,13 @@ pub struct Config {
     /// name no longer attached, means the primary monitor — so unplugging a screen cannot strand it.
     #[serde(default)]
     pub notch_monitor: Option<String>,
-    /// Notch size as a multiple of the designed size (0.5–1.5). The whole notch scales: the
-    /// window grows and its WebView zooms, so the rings, text and hover card keep their proportions.
+    /// Notch size as a multiple of the designed size (0.5–1.5). The dock scales: the
+    /// window grows and its WebView zooms. The hover card uses `card_scale` instead.
     #[serde(default = "default_scale")]
     pub scale: f64,
+    /// Hover-card size as a multiple of the designed card (0.75–2.0), independent of `scale`.
+    #[serde(default = "default_card_scale")]
+    pub card_scale: f64,
     /// Where the weekly limit gets a ring of its own: "off", "inside" or "outside".
     #[serde(default = "default_weekly_ring")]
     pub weekly_ring: String,
@@ -149,6 +163,9 @@ pub fn edge_is_vertical(edge: &str) -> bool {
 fn default_scale() -> f64 {
     1.0
 }
+fn default_card_scale() -> f64 {
+    1.0
+}
 fn default_weekly_ring() -> String {
     "off".into()
 }
@@ -226,6 +243,7 @@ impl Default for Config {
             notch_edge: default_notch_edge(),
             notch_monitor: None,
             scale: default_scale(),
+            card_scale: default_card_scale(),
             weekly_ring: default_weekly_ring(),
             notch_providers: Vec::new(), // empty = show them all
             notch_slots: Vec::new(),     // filled in by load(), from notch_providers
@@ -277,6 +295,7 @@ pub fn load() -> Config {
     }
 
     cfg.scale = clamp_scale(cfg.scale);
+    cfg.card_scale = clamp_card_scale(cfg.card_scale);
     cfg.weekly_ring = weekly_ring_or_off(&cfg.weekly_ring);
     cfg.accent_color = accent_or_system(&cfg.accent_color);
     cfg.surface_style = surface_or_solid(&cfg.surface_style);
@@ -295,7 +314,7 @@ pub fn save(cfg: &Config) {
 
 #[cfg(test)]
 mod tests {
-    use super::{accent_or_system, clamp_scale, snap_scale, surface_or_solid, weekly_ring_or_off};
+    use super::{accent_or_system, clamp_card_scale, clamp_scale, snap_scale, surface_or_solid, weekly_ring_or_off};
 
     #[test]
     fn a_saved_scale_snaps_to_the_nearest_size() {
@@ -336,5 +355,12 @@ mod tests {
         assert_eq!(clamp_scale(0.55), 0.55);
         assert_eq!(clamp_scale(1.1), 1.1);
         assert_eq!(clamp_scale(3.0), 1.5);
+    }
+
+    #[test]
+    fn card_scale_stays_between_three_quarters_and_two() {
+        assert_eq!(clamp_card_scale(0.2), 0.75);
+        assert_eq!(clamp_card_scale(1.4), 1.4);
+        assert_eq!(clamp_card_scale(4.0), 2.0);
     }
 }

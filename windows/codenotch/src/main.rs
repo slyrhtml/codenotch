@@ -82,6 +82,29 @@ pub fn ui_scale(app: &AppHandle) -> f64 {
     config::clamp_scale(c.scale)
 }
 
+/// Hover-card size, independent of the dock.
+pub fn card_ui_scale(app: &AppHandle) -> f64 {
+    let st = app.state::<AppState>();
+    let c = st.cfg.lock().unwrap();
+    config::clamp_card_scale(c.card_scale)
+}
+
+/// How much extra window room the hover card needs when it is larger than the dock zoom.
+fn card_room(app: &AppHandle) -> f64 {
+    (card_ui_scale(app) / ui_scale(app)).max(1.0)
+}
+
+fn emit_scales(app: &AppHandle) {
+    let _ = app.emit(
+        "notch_scale",
+        serde_json::json!({
+            "scale": ui_scale(app),
+            "cardScale": card_ui_scale(app),
+            "card_scale": card_ui_scale(app),
+        }),
+    );
+}
+
 pub fn broadcast(app: &AppHandle) {
     let st = app.state::<AppState>();
     let snap = {
@@ -243,7 +266,10 @@ pub fn place_notch(app: &AppHandle) {
             let c = st.cfg.lock().unwrap();
             config::edge_or_right(&c.notch_edge)
         };
-        let (width, height) = notch_window_size(&edge);
+        let (mut width, mut height) = notch_window_size(&edge);
+        let room = card_room(app);
+        width *= room;
+        height *= room;
         // Never taller or wider than the screen: Large on a small, highly scaled display can ask for more
         let target = tauri::PhysicalSize::new(
             ((width * ms * size).round() as u32).min(mon.w.max(1) as u32),
@@ -1009,7 +1035,7 @@ fn get_scale(app: AppHandle) -> f64 {
     ui_scale(&app)
 }
 
-/// Settings' size: a named preset or the custom slider (75 %–150 %). The notch
+/// Settings' size: a named preset or the custom slider. The notch
 /// window is resized and zoomed around its centre.
 #[tauri::command]
 fn set_scale(app: AppHandle, scale: f64) -> f64 {
@@ -1021,6 +1047,27 @@ fn set_scale(app: AppHandle, scale: f64) -> f64 {
         c.scale
     };
     place_notch(&app);
+    emit_scales(&app);
+    value
+}
+
+#[tauri::command]
+fn get_card_scale(app: AppHandle) -> f64 {
+    card_ui_scale(&app)
+}
+
+/// How large the hover card opens, independent of the dock.
+#[tauri::command]
+fn set_card_scale(app: AppHandle, card_scale: f64) -> f64 {
+    let value = {
+        let st = app.state::<AppState>();
+        let mut c = st.cfg.lock().unwrap();
+        c.card_scale = config::clamp_card_scale(card_scale);
+        config::save(&c);
+        c.card_scale
+    };
+    place_notch(&app);
+    emit_scales(&app);
     value
 }
 
@@ -1721,6 +1768,8 @@ fn main() {
             set_lang,
             get_scale,
             set_scale,
+            get_card_scale,
+            set_card_scale,
             get_weekly_ring,
             set_weekly_ring,
             get_tray_options,

@@ -210,6 +210,8 @@
           <div class="item"><span>Size</span><span class="seg" id="seg-size"><button data-v="0.55">Tiny</button><button data-v="0.8">Small</button><button data-v="1">Medium</button><button data-v="1.25">Large</button></span></div>
           <div class="item" id="row-size-custom"><span>Scale</span><span class="size-slide"><input type="range" id="size-slider" min="50" max="150" value="100" aria-label="Notch scale"><span id="size-pct" class="mono">100%</span></span></div>
           <div class="item cap" id="cap-size" data-dynamic></div>
+          <div class="item"><span>Hover card</span><span class="size-slide"><input type="range" id="card-slider" min="75" max="200" value="100" aria-label="Hover card scale"><span id="card-pct" class="mono">100%</span></span></div>
+          <div class="item cap">How large the tooltip opens when you hover a ring. Keep the dock small and turn this up to read usage.</div>
           <div class="item"><span>Weekly ring</span><span class="seg" id="seg-weekly"><button data-v="off">Off</button><button data-v="inside">Inside</button><button data-v="outside">Outside</button></span></div>
           <div class="item cap" id="cap-weekly" data-dynamic></div>
           <div class="item"><span>Edge</span><span class="seg" id="seg-edge"><button data-v="left">Left</button><button data-v="right">Right</button><button data-v="top">Top</button><button data-v="bottom">Bottom</button></span></div>
@@ -1201,7 +1203,7 @@ const SIZE_WHY = {
   '1': 'The size the notch was drawn at.',
   '1.25': 'Easier to read at a glance, and harder to ignore.'
 };
-const SIZE_CUSTOM = 'Drag to set the overall pixel size. Rings, text and tooltip scale together. 100% is the designed size; the slider goes from 50% to 150%.';
+const SIZE_CUSTOM = 'Drag to set the dock’s pixel size. Rings and labels scale together. The hover card has its own slider below.';
 const PRESETS = [0.55, 0.8, 1, 1.25];
 const SCALE_MIN = 0.5, SCALE_MAX = 1.5;
 let notchSize = 1, sizeBusy = false, scaleTimer = 0;
@@ -1260,6 +1262,41 @@ document.getElementById('size-slider').addEventListener('input', e => {
 });
 document.getElementById('size-slider').addEventListener('change', e => {
   pushScale(clampUiScale(Number(e.target.value) / 100), true);
+});
+
+const CARD_SCALE_MIN = 0.75, CARD_SCALE_MAX = 2;
+let cardSize = 1, cardBusy = false, cardTimer = 0;
+function clampCardScale(n){
+  return Math.max(CARD_SCALE_MIN, Math.min(CARD_SCALE_MAX, n));
+}
+function renderCardScale(){
+  const slider = document.getElementById('card-slider');
+  const pct = Math.round(cardSize * 100);
+  if(document.activeElement !== slider) slider.value = String(pct);
+  document.getElementById('card-pct').textContent = pct + '%';
+  slider.disabled = cardBusy;
+}
+function pushCardScale(want, toastOnDone){
+  cardBusy = true;
+  cardSize = want;
+  renderCardScale();
+  invoke('set_card_scale', { cardScale: want })
+    .then(v => { cardSize = typeof v === 'number' ? v : want; if(toastOnDone) toast(); })
+    .catch(err => {
+      strip('set_card_scale failed: ' + errText(err));
+      return call('get_card_scale', undefined, null).then(v => { if(typeof v === 'number') cardSize = v; });
+    })
+    .then(() => { cardBusy = false; renderCardScale(); });
+}
+document.getElementById('card-slider').addEventListener('input', e => {
+  const want = clampCardScale(Number(e.target.value) / 100);
+  cardSize = want;
+  document.getElementById('card-pct').textContent = Math.round(want * 100) + '%';
+  clearTimeout(cardTimer);
+  cardTimer = setTimeout(() => pushCardScale(want, false), 40);
+});
+document.getElementById('card-slider').addEventListener('change', e => {
+  pushCardScale(clampCardScale(Number(e.target.value) / 100), true);
 });
 
 /* ---- Appearance: edge and screen -------------------------------------------
@@ -1540,6 +1577,19 @@ function boot(){
     if(typeof v === 'number') notchSize = v;
     renderSize();
   });
+  call('get_card_scale', undefined, null).then(v => {
+    if(typeof v === 'number') cardSize = v;
+    renderCardScale();
+  });
+  try {
+    window.__TAURI__.event.listen('notch_scale', e => {
+      const v = e.payload;
+      if(!v || typeof v !== 'object') return;
+      if(typeof v.scale === 'number'){ notchSize = v.scale; renderSize(); }
+      const cs = v.card_scale != null ? v.card_scale : v.cardScale;
+      if(typeof cs === 'number'){ cardSize = cs; renderCardScale(); }
+    });
+  } catch(e) { /* slider still loads from get_card_scale */ }
   call('get_notch_edge', undefined, null).then(v => { if(typeof v === 'string') notchEdge = v; renderEdge(); });
   refreshScreens();
   call('get_weekly_ring', undefined, null).then(v => { if(typeof v === 'string') weeklyRing = v; renderWeekly(); });

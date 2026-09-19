@@ -96,10 +96,12 @@
        The 246 cap matches the upstream spec. */
     max-width:246px;margin-left:auto;background:var(--card);border-radius:16px;padding:16px;
     overflow-wrap:anywhere;min-width:0;
-    max-height:calc(100% - 16px);overflow:hidden; /* never taller than the window, however short it is */
+    /* 100% / zoom so a larger hover card still fits the extra window room without clipping */
+    max-height:calc(100% / var(--card-zoom, 1) - 16px);overflow:hidden;
     display:none;
   }
   #card.show{display:block}
+  #card,#tail{zoom:var(--card-zoom,1)}
   /* The tail, its point on the hovered ring: the Mac's curved wedge (TooltipTail), whose shoulders
      leave the card tangent to its edge so the two read as one shape. An element of its own rather
      than ::after, so the card's overflow cannot clip it and it can be reported as hot. It spans the
@@ -259,6 +261,22 @@ function readAppearance(v){
   if(typeof renderCard==='function' && shown && shown.classList.contains('show')) renderCard();
 }
 applyAppearance();
+let dockScale=1, cardScale=1;
+function cardZoom(){ return Math.max(0.25, cardScale/Math.max(0.01, dockScale)); }
+function cardRoom(){ return Math.max(cardZoom(), 1); }
+function applyCardZoom(){
+  document.documentElement.style.setProperty('--card-zoom', String(cardZoom()));
+  if(typeof fitZoom==='function') fitZoom();
+  if(typeof placeCard==='function' && typeof card!=='undefined' && card && card.classList.contains('show')) placeCard();
+  if(typeof reportHot==='function') reportHot();
+}
+function readScales(v){
+  if(!v||typeof v!=='object') return;
+  if(typeof v.scale==='number') dockScale=v.scale;
+  const cs=v.card_scale!=null?v.card_scale:v.cardScale;
+  if(typeof cs==='number') cardScale=cs;
+  applyCardZoom();
+}
 function cssVar(name, fallback){
   const root=document.getElementById('root');
   const v=root && getComputedStyle(root).getPropertyValue(name).trim();
@@ -960,18 +978,19 @@ function placeCard(){
   // The point sits on the ring, not the cell, which includes the label below it
   const rr=(cell.querySelector('.ringwrap')||cell).getBoundingClientRect();
   card.style.transform='none';
+  const z=cardZoom();
   if(edgeIsVertical()){
     const cy=cr.top+cr.height/2;
-    const H=innerHeight, ch=card.offsetHeight||0;
+    const H=innerHeight, ch=(card.offsetHeight||0)*z;
     let top=Math.round(cy-ch/2); top=Math.max(8+insets[0],Math.min(top,H-insets[2]-ch-8));
     card.style.top=top+'px'; card.style.left='';
     const ry=rr.top+rr.height/2;
-    const th=tail.offsetHeight||36, ty=Math.max(top+16+th/2,Math.min(top+ch-16-th/2,ry));
+    const th=(tail.offsetHeight||36)*z, ty=Math.max(top+16+th/2,Math.min(top+ch-16-th/2,ry));
     tail.style.top=Math.round(ty-th/2)+'px'; tail.style.left='';
   }else{
     const pr=pill.getBoundingClientRect();
     const cx=cr.left+cr.width/2;
-    const W=innerWidth, cw=card.offsetWidth||0, ch=card.offsetHeight||0;
+    const W=innerWidth, cw=(card.offsetWidth||0)*z, ch=(card.offsetHeight||0)*z;
     let left=Math.round(cx-cw/2); left=Math.max(8+insets[3],Math.min(left,W-insets[1]-cw-8));
     card.style.left=left+'px';
     const rx=rr.left+rr.width/2;
@@ -1024,7 +1043,7 @@ function armWatchdog(){
 // `notch_window_size` in main.rs: NOTCH_W upright, NOTCH_H lying flat. Dividing by 360 on a flat edge
 // read the wider window as a DPR error and zoomed the whole notch by 520/360.
 const DESIGN_W_UPRIGHT=360, DESIGN_W_FLAT=520;
-function designWidth(){ return edgeIsVertical()?DESIGN_W_UPRIGHT:DESIGN_W_FLAT; }
+function designWidth(){ return (edgeIsVertical()?DESIGN_W_UPRIGHT:DESIGN_W_FLAT)*cardRoom(); }
 function fitZoom(){
   const z=innerWidth/designWidth();
   document.documentElement.style.zoom=(Math.abs(z-1)>0.02)?String(z):'';
@@ -1241,6 +1260,9 @@ listen('notch_slots',e=>{
 }).catch(()=>{});
 invoke('get_appearance').then(readAppearance).catch(()=>{});
 listen('appearance',e=>readAppearance(e.payload)).catch(()=>{});
+invoke('get_scale').then(s=>{ if(typeof s==='number') dockScale=s; applyCardZoom(); }).catch(()=>{});
+invoke('get_card_scale').then(s=>{ if(typeof s==='number') cardScale=s; applyCardZoom(); }).catch(()=>{});
+listen('notch_scale',e=>readScales(e.payload)).catch(()=>{});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{
   applyAppearance();
   renderRing();
