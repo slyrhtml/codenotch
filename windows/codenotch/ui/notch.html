@@ -9,10 +9,12 @@
   body{font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink,#fff)}
   #root{position:relative;width:100%;height:100%;
     --pill:#000;--card:#0a0a0a;--ink:#fff;--track:#303030;--stroke:#2e2e2e;--muted:#808080}
-  #root.surface-darkGlass #pill,#root.surface-darkGlass #card{
+  #root.surface-darkGlass #pill,#root.surface-darkGlass #card,
+  #root.surface-glass #pill,#root.surface-glass #card,#root.surface-system #pill,#root.surface-system #card{
     backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15)}
   #root.surface-darkGlass{--pill:rgba(0,0,0,.52);--card:rgba(10,10,10,.64)}
-  #root.surface-system.light{--pill:#f2f2f4;--card:#fff;--ink:#1d1d1f;--track:#c8c8cc;--stroke:#d0d0d4;--muted:#6b6b6b}
+  #root.surface-glass,#root.surface-system{--pill:rgba(0,0,0,.52);--card:rgba(10,10,10,.64)}
+  #root.surface-glass.light,#root.surface-system.light{--pill:rgba(242,242,244,.78);--card:rgba(255,255,255,.82);--ink:#1d1d1f;--track:#c8c8cc;--stroke:#d0d0d4;--muted:#6b6b6b}
 
   /* The pill on the right edge */
   #pill{
@@ -42,7 +44,9 @@
     bottom:calc(-1 * var(--fillet));
     background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
   }
-  .cell{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:6px;animation:cell-in .34s cubic-bezier(.22,1,.36,1)}
+  @keyframes cell-in{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+  @media (prefers-reduced-motion: reduce){.cell{animation:none}}
   .ringwrap{position:relative;width:56px;height:56px;transition:transform .3s cubic-bezier(.34,1.4,.64,1)}
   .ringwrap.pressed{transform:scale(.93)}
   .ringwrap > svg.ring,.ringwrap > svg.reading,.ringwrap > svg.activity{position:absolute;inset:0;overflow:visible} /* pins only the ring itself; an inline logo svg must not match this or it ends up in the top-left corner */
@@ -219,7 +223,7 @@ const listen = window.__TAURI__.event.listen;
 const AMPLE='#00FF88', WATCH='#F2FF00', CRIT='#FF3F00';
 const ACCENTS={system:'#00FF88',ff33e1:'#FF33E1',eb4236:'#EB4236',eb8436:'#EB8436',ffd400:'#FFD400',
   '00ff88':'#00FF88','00e5cc':'#00E5CC','36a8eb':'#36A8EB','6c5ce7':'#6C5CE7',b026ff:'#B026FF',f7f6f5:'#F7F6F5'};
-let appearance={accent_color:'system',surface_style:'solid'};
+let appearance={accent_color:'system',surface_style:'glass'};
 function ample(){ return ACCENTS[appearance.accent_color] || AMPLE; }
 // The status arc is neutral on purpose: the ring behind it is coloured by how much of the limit
 // is gone, and a green arc inside it reads as part of that scale. Waiting borrows the warning yellow.
@@ -228,10 +232,11 @@ const tone=f=> f>=0.8?CRIT : f>=0.5?WATCH : ample();
 function applyAppearance(){
   const root=document.getElementById('root');
   if(!root) return;
-  root.classList.remove('surface-solid','surface-darkGlass','surface-system','light');
-  const style=appearance.surface_style||'solid';
+  root.classList.remove('surface-solid','surface-darkGlass','surface-system','surface-glass','light');
+  let style=appearance.surface_style||'glass';
+  if(style==='system') style='glass';
   root.classList.add('surface-'+style);
-  if(style==='system' && !matchMedia('(prefers-color-scheme: dark)').matches) root.classList.add('light');
+  if(style==='glass' && !matchMedia('(prefers-color-scheme: dark)').matches) root.classList.add('light');
 }
 function readAppearance(v){
   if(!v||typeof v!=='object') return;

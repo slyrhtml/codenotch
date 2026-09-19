@@ -16,6 +16,18 @@ pub fn snap_scale(scale: f64) -> f64 {
     }
 }
 
+/// The Mac custom slider: 75 %–150 % of the designed size, continuous.
+pub const SCALE_MIN: f64 = 0.75;
+pub const SCALE_MAX: f64 = 1.5;
+
+pub fn clamp_scale(scale: f64) -> f64 {
+    if !scale.is_finite() {
+        1.0
+    } else {
+        scale.clamp(SCALE_MIN, SCALE_MAX)
+    }
+}
+
 /// One ring on the notch: which provider. (A `window` key from older builds is ignored.)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TraySlot {
@@ -52,7 +64,7 @@ pub struct Config {
     /// name no longer attached, means the primary monitor — so unplugging a screen cannot strand it.
     #[serde(default)]
     pub notch_monitor: Option<String>,
-    /// Notch size as a multiple of the designed size, one of `SIZES`. The whole notch scales: the
+    /// Notch size as a multiple of the designed size (0.75–1.5). The whole notch scales: the
     /// window grows and its WebView zooms, so the rings, text and hover card keep their proportions.
     #[serde(default = "default_scale")]
     pub scale: f64,
@@ -104,7 +116,7 @@ pub struct Config {
     /// Ring accent: "system" (Windows accent / default green) or a 6-digit hex without `#`.
     #[serde(default = "default_accent_color")]
     pub accent_color: String,
-    /// Notch surface: "solid" (opaque black), "darkGlass" (blurred dark), "system" (follow Windows light/dark).
+    /// Notch surface: "glass" (follow Windows + translucent), "darkGlass" (blurred dark), "solid" (opaque black).
     #[serde(default = "default_surface_style")]
     pub surface_style: String,
 }
@@ -164,7 +176,7 @@ fn default_accent_color() -> String {
     "system".into()
 }
 fn default_surface_style() -> String {
-    "solid".into()
+    "glass".into()
 }
 
 /// Persistence keys match the Mac `AccentColorChoice` raw values.
@@ -172,7 +184,7 @@ pub const ACCENT_COLORS: [&str; 11] = [
     "system", "ff33e1", "eb4236", "eb8436", "ffd400", "00ff88", "00e5cc", "36a8eb", "6c5ce7", "b026ff",
     "f7f6f5",
 ];
-pub const SURFACE_STYLES: [&str; 3] = ["solid", "darkGlass", "system"];
+pub const SURFACE_STYLES: [&str; 3] = ["solid", "darkGlass", "glass"];
 
 pub fn accent_or_system(value: &str) -> String {
     let v = value.trim().trim_start_matches('#').to_ascii_lowercase();
@@ -183,6 +195,9 @@ pub fn accent_or_system(value: &str) -> String {
     }
 }
 pub fn surface_or_solid(value: &str) -> String {
+    if value == "system" {
+        return "glass".into();
+    }
     if SURFACE_STYLES.contains(&value) {
         value.to_string()
     } else {
@@ -260,8 +275,7 @@ pub fn load() -> Config {
         cfg.tray_visible = true;
     }
 
-    // The old slider's 40–100 %, or a hand-edited file, lands on one of the three sizes
-    cfg.scale = snap_scale(cfg.scale);
+    cfg.scale = clamp_scale(cfg.scale);
     cfg.weekly_ring = weekly_ring_or_off(&cfg.weekly_ring);
     cfg.accent_color = accent_or_system(&cfg.accent_color);
     cfg.surface_style = surface_or_solid(&cfg.surface_style);
@@ -280,7 +294,7 @@ pub fn save(cfg: &Config) {
 
 #[cfg(test)]
 mod tests {
-    use super::{accent_or_system, snap_scale, surface_or_solid, weekly_ring_or_off};
+    use super::{accent_or_system, clamp_scale, snap_scale, surface_or_solid, weekly_ring_or_off};
 
     #[test]
     fn a_saved_scale_snaps_to_the_nearest_size() {
@@ -310,6 +324,15 @@ mod tests {
     #[test]
     fn only_known_surfaces_are_kept() {
         assert_eq!(surface_or_solid("darkGlass"), "darkGlass");
-        assert_eq!(surface_or_solid("glass"), "solid");
+        assert_eq!(surface_or_solid("glass"), "glass");
+        assert_eq!(surface_or_solid("system"), "glass");
+        assert_eq!(surface_or_solid("nope"), "glass");
+    }
+
+    #[test]
+    fn custom_scale_stays_between_three_quarters_and_one_and_a_half() {
+        assert_eq!(clamp_scale(0.4), 0.75);
+        assert_eq!(clamp_scale(1.1), 1.1);
+        assert_eq!(clamp_scale(3.0), 1.5);
     }
 }

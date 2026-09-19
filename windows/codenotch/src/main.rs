@@ -74,11 +74,11 @@ fn resolved_lang(raw: &str) -> String {
     }
 }
 
-/// The notch size chosen in Settings: Small, Medium or Large, as a multiple of the designed size.
+/// The notch size chosen in Settings, as a multiple of the designed size (0.75–1.5).
 pub fn ui_scale(app: &AppHandle) -> f64 {
     let st = app.state::<AppState>();
     let c = st.cfg.lock().unwrap();
-    config::snap_scale(c.scale)
+    config::clamp_scale(c.scale)
 }
 
 pub fn broadcast(app: &AppHandle) {
@@ -1008,13 +1008,14 @@ fn get_scale(app: AppHandle) -> f64 {
     ui_scale(&app)
 }
 
-/// Settings' Small, Medium or Large. The notch window is resized and zoomed around its centre.
+/// Settings' size: a named preset or the custom slider (75 %–150 %). The notch
+/// window is resized and zoomed around its centre.
 #[tauri::command]
 fn set_scale(app: AppHandle, scale: f64) -> f64 {
     let value = {
         let st = app.state::<AppState>();
         let mut c = st.cfg.lock().unwrap();
-        c.scale = config::snap_scale(scale);
+        c.scale = config::clamp_scale(scale);
         config::save(&c);
         c.scale
     };

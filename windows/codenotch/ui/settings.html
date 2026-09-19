@@ -82,11 +82,12 @@
   .value{color:var(--text2)}
 
   /* ---- account rows ---- */
-  .acct{padding:9px 12px}
+  .acct{padding:9px 12px;transition:opacity .32s cubic-bezier(.22,1,.36,1),transform .32s cubic-bezier(.22,1,.36,1)}
   .acct-line{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px;cursor:pointer}
   .acct-name{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
   .acct.off .acct-name{color:var(--text2)}
   .acct.off .glyph{opacity:.5}
+  .acct.flip{opacity:.45;transform:translateY(-3px)}
   .acct-detail{margin:4px 0 0 26px;font-size:12px;color:var(--text2)}
   .acct-sub{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 0 26px;font-size:13px}
   .handle{width:12px;height:18px;flex:none;opacity:.35;cursor:grab;background:
@@ -98,11 +99,17 @@
   .glyph.letter{font-size:10px;font-weight:700;background:var(--seg-bg);border-radius:4px}
 
   /* ---- controls: Windows 11 cues in the system accent ---- */
-  .switch{width:44px;height:24px;border-radius:12px;border:1px solid var(--text2);background:transparent;position:relative;flex:none;padding:0;cursor:pointer}
-  .switch::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:8px;background:var(--text2);transition:left .12s;pointer-events:none}
+  .switch{width:44px;height:24px;border-radius:12px;border:1px solid var(--text2);background:rgba(255,255,255,.08);position:relative;flex:none;padding:0;cursor:pointer;
+    transition:background .32s cubic-bezier(.22,1,.36,1),border-color .32s cubic-bezier(.22,1,.36,1)}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:8px;background:var(--text2);pointer-events:none;
+    transition:transform .36s cubic-bezier(.22,1.45,.36,1),background .32s cubic-bezier(.22,1,.36,1)}
   .switch.on{border-color:transparent;background:var(--accent)}
-  .switch.on::after{left:23px;background:var(--on-accent)}
-  .switch:disabled,.switch.locked{opacity:.5}
+  .switch.on::after{transform:translateX(20px);background:var(--on-accent)}
+  .switch:disabled,.switch.locked{opacity:.5;cursor:default}
+  @media (prefers-color-scheme: light){ .switch{background:rgba(0,0,0,.08)} }
+  @media (prefers-reduced-motion: reduce){
+    .switch,.switch::after,.acct{transition:none}
+  }
   .seg{display:inline-flex;background:var(--seg-bg);border-radius:7px;padding:2px;gap:2px;flex:none}
   .seg button{border:0;background:transparent;font-size:13px;padding:3px 14px;border-radius:5px}
   .seg button:hover:not(.on):not(:disabled){background:var(--hover)}
@@ -114,10 +121,18 @@
   select option{color:#000}
   .link{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;font-size:12px}
   .link:hover{text-decoration:underline}
-  .swatches{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:280px}
-  .swatch{width:22px;height:22px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
-  .swatch.on{border-color:var(--text);box-shadow:0 0 0 2px var(--text)}
-  .swatch.system{background:conic-gradient(#0a7aff,#00ff88,#ffd400,#ff33e1,#0a7aff)}
+  .swatches{display:flex;flex-wrap:wrap;gap:2px;justify-content:flex-end;align-items:center}
+  .swatch{width:22px;height:22px;border-radius:50%;border:1.5px solid transparent;padding:0;cursor:pointer;background:none;
+    box-shadow:inset 0 0 0 16px var(--swatch,#888), inset 0 0 0 1px rgba(0,0,0,.22);
+    transition:transform .12s ease-out,box-shadow .18s ease-out,border-color .18s}
+  .swatch:hover:not(.on){transform:scale(1.15)}
+  .swatch.on{border-color:var(--text);box-shadow:inset 0 0 0 7px var(--swatch,#888), 0 0 0 1.5px var(--text)}
+  .swatch.system{--swatch:transparent;background:conic-gradient(#0a7aff,#00ff88,#ffd400,#ff33e1,#0a7aff);box-shadow:inset 0 0 0 1px rgba(0,0,0,.22)}
+  .swatch.system.on{box-shadow:inset 0 0 0 1px rgba(0,0,0,.22), 0 0 0 1.5px var(--text)}
+  .size-slide{display:flex;align-items:center;gap:10px;flex:none}
+  .size-slide input[type=range]{-webkit-appearance:none;appearance:none;width:168px;height:4px;border-radius:2px;background:var(--seg-bg);margin:0}
+  .size-slide input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 0 1px rgba(0,0,0,.2)}
+  .size-slide .mono{width:46px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text2)}
 
   #toast{position:fixed;right:18px;bottom:14px;background:var(--side);border:1px solid var(--line);border-radius:8px;
     padding:5px 10px;font-size:12px;color:var(--text2);opacity:0;transition:opacity .3s;pointer-events:none}
@@ -163,11 +178,34 @@
       </section>
 
       <section class="pane" id="pane-appearance" role="tabpanel" aria-labelledby="tab-appearance" hidden>
+        <div class="sec">Theme</div>
+        <div class="group">
+          <div class="item"><span>Surface</span><span class="seg" id="seg-surface"><button data-v="glass">Follow Windows</button><button data-v="darkGlass">Dark glass</button><button data-v="solid">Solid black</button></span></div>
+          <div class="item cap" id="cap-surface">Follows Windows light or dark mode and uses a translucent notch. Dark glass stays dark. Solid black is the original opaque notch.</div>
+          <div class="item"><span>Accent color</span>
+            <div class="swatches" id="accents">
+              <button type="button" class="swatch system on" data-accent="system" title="Device accent color" aria-pressed="true"></button>
+              <button type="button" class="swatch" data-accent="ff33e1" style="--swatch:#ff33e1" title="#FF33E1" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-accent="eb4236" style="--swatch:#eb4236" title="#EB4236" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-accent="eb8436" style="--swatch:#eb8436" title="#EB8436" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-accent="ffd400" style="--swatch:#ffd400" title="#FFD400" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-accent="00ff88" style="--swatch:#00ff88" title="#00FF88" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-accent="00e5cc" style="--swatch:#00e5cc" title="#00E5CC" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-accent="36a8eb" style="--swatch:#36a8eb" title="#36A8EB" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-accent="6c5ce7" style="--swatch:#6c5ce7" title="#6C5CE7" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-accent="b026ff" style="--swatch:#b026ff" title="#B026FF" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-accent="f7f6f5" style="--swatch:#f7f6f5" title="#F7F6F5" aria-pressed="false"></button>
+            </div>
+          </div>
+          <div class="item cap">The ring’s unused-quota colour, the same eleven choices as on the Mac. Amber and red stay fixed when usage is high. Device accent follows Windows.</div>
+        </div>
         <div class="sec">Notch</div>
         <div class="group">
           <div class="item"><span>Show</span><span class="seg" id="seg-show"><button data-v="show">Always show</button><button data-v="hide">Hide</button></span></div>
           <div class="item cap" id="cap-show" data-dynamic></div>
-          <div class="item"><span>Size</span><span class="seg" id="seg-size"><button data-v="0.8">Small</button><button data-v="1">Medium</button><button data-v="1.25">Large</button></span></div>
+          <div class="item"><span>Size</span><span class="seg" id="seg-size-mode"><button data-v="preset">Preset</button><button data-v="custom">Custom</button></span></div>
+          <div class="item" id="row-size-preset"><span>Preset size</span><span class="seg" id="seg-size"><button data-v="0.8">Small</button><button data-v="1">Medium</button><button data-v="1.25">Large</button></span></div>
+          <div class="item" id="row-size-custom" hidden><span>Scale</span><span class="size-slide"><input type="range" id="size-slider" min="75" max="150" value="100" aria-label="Notch scale"><span id="size-pct" class="mono">100%</span></span></div>
           <div class="item cap" id="cap-size" data-dynamic></div>
           <div class="item"><span>Weekly ring</span><span class="seg" id="seg-weekly"><button data-v="off">Off</button><button data-v="inside">Inside</button><button data-v="outside">Outside</button></span></div>
           <div class="item cap" id="cap-weekly" data-dynamic></div>
@@ -180,13 +218,6 @@
           </div>
           <div class="item cap" id="cap-screen" data-dynamic hidden></div>
           <div class="item"><span class="hint">The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. Recentre puts it back in the middle of the edge it is on, or on the main screen's right-hand edge if the screen it was on has been unplugged.</span><button class="btn" id="btn-recentre">Recentre</button></div>
-        </div>
-        <div class="sec">Theme</div>
-        <div class="group">
-          <div class="item"><span>Notch</span><span class="seg" id="seg-surface"><button data-v="solid">Solid black</button><button data-v="darkGlass">Dark glass</button><button data-v="system">Follow Windows</button></span></div>
-          <div class="item cap" id="cap-surface">Solid black is the original notch. Dark glass blurs the desktop behind it. Follow Windows uses a light pill when Windows is in light mode.</div>
-          <div class="item"><span>Accent color</span><div class="swatches" id="accents" data-dynamic></div></div>
-          <div class="item cap">The ring’s unused-quota colour. Amber and red warning colours stay fixed, the same as on the Mac.</div>
         </div>
         <div class="sec">App</div>
         <div class="group">
@@ -757,6 +788,7 @@ const dark = matchMedia('(prefers-color-scheme: dark)');
 let palette = null;
 function applyAccent(){
   const root = document.documentElement.style;
+  if(typeof appearance === 'object' && appearance && appearance.accent_color && appearance.accent_color !== 'system') return;
   if(!palette){ root.removeProperty('--accent'); root.removeProperty('--on-accent'); return; }
   root.setProperty('--accent', dark.matches ? palette[1] : palette[4]);
   root.setProperty('--on-accent', dark.matches ? '#000000' : '#ffffff');
@@ -955,15 +987,32 @@ function renderAccounts(){
   document.getElementById('acc-off').innerHTML = off.map(p => accountBlock(p, false, false)).join('')
     + '<div class="item cap">' + esc(ui(NO_RING, NO_RING)) + '</div>';
 }
-function saveNotch(next){
+let accountsPaint = 0;
+function saveNotch(next, animateId){
   const ids = providerList().map(p => p.id);
   const store = next.length === ids.length ? [] : next;
   const prev = notchSlots;
   notchSlots = store;
-  renderAccounts();
   invoke('set_notch_slots', { slots: store.map(sl => ({ provider:sl.provider })) })
     .then(() => toast())
     .catch(e => { notchSlots = prev; renderAccounts(); strip('set_notch_slots failed: ' + errText(e)); });
+  if(animateId){
+    const row = document.querySelector('[data-acct="' + animateId + '"]');
+    const nowOn = !store.length || store.some(sl => sl.provider === animateId);
+    if(row){
+      const sw = row.querySelector('.switch[data-np]');
+      if(sw){
+        sw.classList.toggle('on', nowOn);
+        sw.setAttribute('aria-checked', nowOn ? 'true' : 'false');
+      }
+      row.classList.toggle('off', !nowOn);
+      row.classList.add('flip');
+    }
+    const token = ++accountsPaint;
+    setTimeout(() => { if(token === accountsPaint) renderAccounts(); }, 340);
+  } else {
+    renderAccounts();
+  }
 }
 function toggleNotch(id){
   const ids = providerList().map(p => p.id);
@@ -977,7 +1026,7 @@ function toggleNotch(id){
     on.push({ provider:id });
   }
   on.sort((a, b) => ids.indexOf(a.provider) - ids.indexOf(b.provider));
-  saveNotch(on);
+  saveNotch(on, id);
 }
 const accountsPane = document.getElementById('pane-accounts');
 accountsPane.addEventListener('click', e => {
@@ -1099,31 +1148,74 @@ const SIZE_WHY = {
   '1': 'The size the notch was drawn at.',
   '1.25': 'Easier to read at a glance, and harder to ignore.'
 };
-let notchSize = 1, sizeBusy = false;
-function renderSize(){
-  for(const b of document.querySelectorAll('#seg-size button')){
-    const on = Number(b.dataset.v) === notchSize;
-    b.classList.toggle('on', on);
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    b.disabled = sizeBusy;
-  }
-  const why = SIZE_WHY[String(notchSize)] || '';
-  document.getElementById('cap-size').textContent = ui(why, why);
+const SIZE_CUSTOM = 'Scales the whole surface — rings, text and tooltip together — so the proportions stay as drawn. 100% is the size the notch was designed at.';
+const PRESETS = [0.8, 1, 1.25];
+let notchSize = 1, sizeBusy = false, sizeCustom = false, scaleTimer = 0;
+function nearestPreset(s){
+  return PRESETS.reduce((a, b) => Math.abs(b - s) < Math.abs(a - s) ? b : a, PRESETS[0]);
 }
-document.getElementById('seg-size').addEventListener('click', e => {
-  const b = e.target.closest('button');
-  if(!b || b.disabled || Number(b.dataset.v) === notchSize) return;
-  const want = Number(b.dataset.v);
+function isPreset(s){
+  return PRESETS.some(p => Math.abs(p - s) < 0.001);
+}
+function pushScale(want, toastOnDone){
   sizeBusy = true;
   notchSize = want;
   renderSize();
   invoke('set_scale', { scale: want })
-    .then(v => { notchSize = typeof v === 'number' ? v : want; toast(); })
+    .then(v => { notchSize = typeof v === 'number' ? v : want; if(toastOnDone) toast(); })
     .catch(err => {
       strip('set_scale failed: ' + errText(err));
       return call('get_scale', undefined, null).then(v => { if(typeof v === 'number') notchSize = v; });
     })
     .then(() => { sizeBusy = false; renderSize(); });
+}
+function renderSize(){
+  for(const b of document.querySelectorAll('#seg-size-mode button')){
+    const on = (b.dataset.v === 'custom') === sizeCustom;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  document.getElementById('row-size-preset').hidden = sizeCustom;
+  document.getElementById('row-size-custom').hidden = !sizeCustom;
+  for(const b of document.querySelectorAll('#seg-size button')){
+    const on = Math.abs(Number(b.dataset.v) - notchSize) < 0.001;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.disabled = sizeBusy;
+  }
+  const slider = document.getElementById('size-slider');
+  const pct = Math.round(notchSize * 100);
+  if(document.activeElement !== slider) slider.value = String(pct);
+  document.getElementById('size-pct').textContent = pct + '%';
+  const why = sizeCustom ? SIZE_CUSTOM : (SIZE_WHY[String(nearestPreset(notchSize))] || SIZE_CUSTOM);
+  document.getElementById('cap-size').textContent = ui(why, why);
+}
+document.getElementById('seg-size-mode').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if(!b) return;
+  const wantCustom = b.dataset.v === 'custom';
+  if(wantCustom === sizeCustom) return;
+  sizeCustom = wantCustom;
+  if(!sizeCustom) pushScale(nearestPreset(notchSize), true);
+  else renderSize();
+});
+document.getElementById('seg-size').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if(!b || b.disabled || Number(b.dataset.v) === notchSize) return;
+  sizeCustom = false;
+  pushScale(Number(b.dataset.v), true);
+});
+document.getElementById('size-slider').addEventListener('input', e => {
+  sizeCustom = true;
+  const want = Math.max(0.75, Math.min(1.5, Number(e.target.value) / 100));
+  notchSize = want;
+  document.getElementById('size-pct').textContent = Math.round(want * 100) + '%';
+  clearTimeout(scaleTimer);
+  scaleTimer = setTimeout(() => pushScale(want, false), 40);
+});
+document.getElementById('size-slider').addEventListener('change', e => {
+  const want = Math.max(0.75, Math.min(1.5, Number(e.target.value) / 100));
+  pushScale(want, true);
 });
 
 /* ---- Appearance: edge and screen -------------------------------------------
@@ -1285,34 +1377,35 @@ const ACCENT_CHOICES = [
   {id:'f7f6f5', title:'#F7F6F5'}
 ];
 const SURFACE_WHY = {
+  glass: 'Follows Windows light or dark mode, and the notch is translucent over the desktop.',
+  darkGlass: 'A dark translucent notch that blurs whatever is behind it. Always dark.',
   solid: 'The original opaque black notch. Always dark.',
-  darkGlass: 'A dark translucent notch that blurs whatever is behind it.',
-  system: 'Follows Windows light or dark mode. The pill stays a notch either way.'
+  system: 'Follows Windows light or dark mode, and the notch is translucent over the desktop.'
 };
-let appearance = { accent_color:'system', surface_style:'solid' };
+let appearance = { accent_color:'system', surface_style:'glass' };
+function surfaceId(v){ return v === 'system' ? 'glass' : (v || 'glass'); }
 function drawSurface(){
+  const style = surfaceId(appearance.surface_style);
   for(const b of document.querySelectorAll('#seg-surface button')){
-    const on = b.dataset.v === appearance.surface_style;
+    const on = b.dataset.v === style;
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
-  document.getElementById('cap-surface').textContent = ui(SURFACE_WHY[appearance.surface_style] || SURFACE_WHY.solid, SURFACE_WHY[appearance.surface_style] || SURFACE_WHY.solid);
+  document.getElementById('cap-surface').textContent = ui(SURFACE_WHY[style] || SURFACE_WHY.glass, SURFACE_WHY[style] || SURFACE_WHY.glass);
 }
 function drawAccents(){
-  const box = document.getElementById('accents');
-  box.innerHTML = ACCENT_CHOICES.map(c => {
-    const on = appearance.accent_color === c.id;
-    const bg = c.id === 'system' ? '' : ('background:#' + c.id);
-    return '<button type="button" class="swatch' + (c.id==='system'?' system':'') + (on?' on':'') + '" data-accent="' + c.id + '" title="' + esc(ui(c.title, c.title)) + '" style="' + bg + '" aria-pressed="' + on + '"></button>';
-  }).join('');
+  for(const b of document.querySelectorAll('#accents [data-accent]')){
+    const on = appearance.accent_color === b.getAttribute('data-accent');
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
   const id = appearance.accent_color;
   if(id && id !== 'system'){
     document.documentElement.style.setProperty('--accent', '#' + id);
     const light = id === 'ffd400' || id === '00ff88' || id === '00e5cc' || id === 'f7f6f5';
     document.documentElement.style.setProperty('--on-accent', light ? '#111111' : '#ffffff');
-  } else {
-    document.documentElement.style.removeProperty('--accent');
-    document.documentElement.style.removeProperty('--on-accent');
+  } else if(typeof applyAccent === 'function'){
+    applyAccent();
   }
 }
 function saveAppearance(next){
@@ -1392,7 +1485,13 @@ function boot(){
   call('get_antigravity_prefs', undefined, null).then(v => { if(v && typeof v === 'object'){ agPrefs = v; renderAccounts(); } });
   call('get_glyphs', undefined, null).then(g => { if(g && typeof g === 'object'){ glyphs = g; renderAccounts(); } });
   try { window.__TAURI__.event.listen('glyphs', e => { if(e.payload){ glyphs = e.payload; renderAccounts(); } }); } catch(e) { /* the letters stay */ }
-  call('get_scale', undefined, null).then(v => { if(typeof v === 'number') notchSize = v; renderSize(); });
+  call('get_scale', undefined, null).then(v => {
+    if(typeof v === 'number'){
+      notchSize = v;
+      sizeCustom = !isPreset(v);
+    }
+    renderSize();
+  });
   call('get_notch_edge', undefined, null).then(v => { if(typeof v === 'string') notchEdge = v; renderEdge(); });
   refreshScreens();
   call('get_weekly_ring', undefined, null).then(v => { if(typeof v === 'string') weeklyRing = v; renderWeekly(); });
@@ -1412,7 +1511,7 @@ function boot(){
     if(!v) return;
     appearance = {
       accent_color: v.accent_color || v.accentColor || 'system',
-      surface_style: v.surface_style || v.surfaceStyle || 'solid'
+      surface_style: surfaceId(v.surface_style || v.surfaceStyle || 'glass')
     };
     drawSurface();
     drawAccents();
@@ -1427,7 +1526,7 @@ function boot(){
       if(!e.payload) return;
       appearance = {
         accent_color: e.payload.accent_color || e.payload.accentColor || appearance.accent_color,
-        surface_style: e.payload.surface_style || e.payload.surfaceStyle || appearance.surface_style
+        surface_style: surfaceId(e.payload.surface_style || e.payload.surfaceStyle || appearance.surface_style)
       };
       drawSurface();
       drawAccents();
