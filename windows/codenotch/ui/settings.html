@@ -114,6 +114,7 @@
   }
   .seg{display:inline-flex;background:var(--seg-bg);border-radius:7px;padding:2px;gap:2px;flex:none}
   .seg button{border:0;background:transparent;font-size:13px;padding:3px 14px;border-radius:5px}
+  #seg-size button{padding:3px 10px}
   .seg button:hover:not(.on):not(:disabled){background:var(--hover)}
   .seg button.on{background:var(--accent);color:var(--on-accent)}
   .seg button:disabled{opacity:.45}
@@ -206,9 +207,8 @@
         <div class="group">
           <div class="item"><span>Show</span><span class="seg" id="seg-show"><button data-v="show">Always show</button><button data-v="hide">Hide</button></span></div>
           <div class="item cap" id="cap-show" data-dynamic></div>
-          <div class="item"><span>Size</span><span class="seg" id="seg-size-mode"><button data-v="preset">Preset</button><button data-v="custom">Custom</button></span></div>
-          <div class="item" id="row-size-preset"><span>Preset size</span><span class="seg" id="seg-size"><button data-v="0.8">Small</button><button data-v="1">Medium</button><button data-v="1.25">Large</button></span></div>
-          <div class="item" id="row-size-custom" hidden><span>Scale</span><span class="size-slide"><input type="range" id="size-slider" min="75" max="150" value="100" aria-label="Notch scale"><span id="size-pct" class="mono">100%</span></span></div>
+          <div class="item"><span>Size</span><span class="seg" id="seg-size"><button data-v="0.55">Tiny</button><button data-v="0.8">Small</button><button data-v="1">Medium</button><button data-v="1.25">Large</button></span></div>
+          <div class="item" id="row-size-custom"><span>Scale</span><span class="size-slide"><input type="range" id="size-slider" min="50" max="150" value="100" aria-label="Notch scale"><span id="size-pct" class="mono">100%</span></span></div>
           <div class="item cap" id="cap-size" data-dynamic></div>
           <div class="item"><span>Weekly ring</span><span class="seg" id="seg-weekly"><button data-v="off">Off</button><button data-v="inside">Inside</button><button data-v="outside">Outside</button></span></div>
           <div class="item cap" id="cap-weekly" data-dynamic></div>
@@ -1196,13 +1196,15 @@ document.getElementById('seg-tray').addEventListener('click', e => {
 
 /* ---- Appearance: size ------------------------------------------------------ */
 const SIZE_WHY = {
-  '0.8': 'Takes the least room on the edge. Readable, but not from across the desk.',
+  '0.55': 'The smallest dock. Fits a crowded taskbar; rings stay usable.',
+  '0.8': 'Takes little room on the edge. Readable, but not from across the desk.',
   '1': 'The size the notch was drawn at.',
   '1.25': 'Easier to read at a glance, and harder to ignore.'
 };
-const SIZE_CUSTOM = 'Scales the whole surface — rings, text and tooltip together — so the proportions stay as drawn. 100% is the size the notch was designed at.';
-const PRESETS = [0.8, 1, 1.25];
-let notchSize = 1, sizeBusy = false, sizeCustom = false, scaleTimer = 0;
+const SIZE_CUSTOM = 'Drag to set the overall pixel size. Rings, text and tooltip scale together. 100% is the designed size; the slider goes from 50% to 150%.';
+const PRESETS = [0.55, 0.8, 1, 1.25];
+const SCALE_MIN = 0.5, SCALE_MAX = 1.5;
+let notchSize = 1, sizeBusy = false, scaleTimer = 0;
 function nearestPreset(s){
   return PRESETS.reduce((a, b) => Math.abs(b - s) < Math.abs(a - s) ? b : a, PRESETS[0]);
 }
@@ -1221,14 +1223,10 @@ function pushScale(want, toastOnDone){
     })
     .then(() => { sizeBusy = false; renderSize(); });
 }
+function clampUiScale(n){
+  return Math.max(SCALE_MIN, Math.min(SCALE_MAX, n));
+}
 function renderSize(){
-  for(const b of document.querySelectorAll('#seg-size-mode button')){
-    const on = (b.dataset.v === 'custom') === sizeCustom;
-    b.classList.toggle('on', on);
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-  }
-  document.getElementById('row-size-preset').hidden = sizeCustom;
-  document.getElementById('row-size-custom').hidden = !sizeCustom;
   for(const b of document.querySelectorAll('#seg-size button')){
     const on = Math.abs(Number(b.dataset.v) - notchSize) < 0.001;
     b.classList.toggle('on', on);
@@ -1239,35 +1237,29 @@ function renderSize(){
   const pct = Math.round(notchSize * 100);
   if(document.activeElement !== slider) slider.value = String(pct);
   document.getElementById('size-pct').textContent = pct + '%';
-  const why = sizeCustom ? SIZE_CUSTOM : (SIZE_WHY[String(nearestPreset(notchSize))] || SIZE_CUSTOM);
+  const why = isPreset(notchSize) ? (SIZE_WHY[String(notchSize)] || SIZE_WHY[String(nearestPreset(notchSize))]) : SIZE_CUSTOM;
   document.getElementById('cap-size').textContent = ui(why, why);
 }
-document.getElementById('seg-size-mode').addEventListener('click', e => {
-  const b = e.target.closest('button');
-  if(!b) return;
-  const wantCustom = b.dataset.v === 'custom';
-  if(wantCustom === sizeCustom) return;
-  sizeCustom = wantCustom;
-  if(!sizeCustom) pushScale(nearestPreset(notchSize), true);
-  else renderSize();
-});
 document.getElementById('seg-size').addEventListener('click', e => {
   const b = e.target.closest('button');
   if(!b || b.disabled || Number(b.dataset.v) === notchSize) return;
-  sizeCustom = false;
   pushScale(Number(b.dataset.v), true);
 });
 document.getElementById('size-slider').addEventListener('input', e => {
-  sizeCustom = true;
-  const want = Math.max(0.75, Math.min(1.5, Number(e.target.value) / 100));
+  const want = clampUiScale(Number(e.target.value) / 100);
   notchSize = want;
   document.getElementById('size-pct').textContent = Math.round(want * 100) + '%';
+  for(const b of document.querySelectorAll('#seg-size button')){
+    const on = Math.abs(Number(b.dataset.v) - want) < 0.001;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  document.getElementById('cap-size').textContent = ui(SIZE_CUSTOM, SIZE_CUSTOM);
   clearTimeout(scaleTimer);
   scaleTimer = setTimeout(() => pushScale(want, false), 40);
 });
 document.getElementById('size-slider').addEventListener('change', e => {
-  const want = Math.max(0.75, Math.min(1.5, Number(e.target.value) / 100));
-  pushScale(want, true);
+  pushScale(clampUiScale(Number(e.target.value) / 100), true);
 });
 
 /* ---- Appearance: edge and screen -------------------------------------------
@@ -1545,10 +1537,7 @@ function boot(){
     });
   } catch(e) { /* the next focus refresh still picks them up */ }
   call('get_scale', undefined, null).then(v => {
-    if(typeof v === 'number'){
-      notchSize = v;
-      sizeCustom = !isPreset(v);
-    }
+    if(typeof v === 'number') notchSize = v;
     renderSize();
   });
   call('get_notch_edge', undefined, null).then(v => { if(typeof v === 'string') notchEdge = v; renderEdge(); });

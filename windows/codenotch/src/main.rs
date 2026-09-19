@@ -75,7 +75,7 @@ fn resolved_lang(raw: &str) -> String {
     }
 }
 
-/// The notch size chosen in Settings, as a multiple of the designed size (0.75–1.5).
+/// The notch size chosen in Settings, as a multiple of the designed size (0.5–1.5).
 pub fn ui_scale(app: &AppHandle) -> f64 {
     let st = app.state::<AppState>();
     let c = st.cfg.lock().unwrap();

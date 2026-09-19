@@ -26,15 +26,14 @@
     position:absolute;right:0;top:50%;transform:translateY(-50%);
     width:70px;padding:18px 0;background:var(--pill);
     border-radius:20px 0 0 20px;
-    /* Stays visible on dark wallpapers: a thin stroke plus a faint glow, the only outline when black sits on black */
-    border:1px solid var(--stroke);border-right:none;
+    border:none;
     box-shadow:none;
     display:flex;flex-direction:column;align-items:center;gap:14px;cursor:pointer;
   }
   /* Fillets: the concave arcs between the pill's top/bottom and the screen edge (the inverse rounded
      corner in the upstream design frame). An R×R black square hugs the edge and a radial gradient
-     punches out the circle of radius R centred on its outer corner; what remains is the arc. A 1 px
-     ring in the stroke colour joins the pill's own stroke (the outline cue on black wallpapers). */
+     punches out the circle of radius R centred on its outer corner; what remains is the arc, filled
+     with the same colour as the pill so the two read as one shape. */
   #pill::before,#pill::after{
     content:"";position:absolute;right:0;width:var(--fillet);height:var(--fillet);pointer-events:none;
   }
@@ -43,13 +42,13 @@
   #pill{--fillet:38.7px}
   #pill::before{
     top:calc(-1 * var(--fillet)); /* covers the 1 px stroke along the pill's top edge so there is no seam */
-    background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
+    background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
     -webkit-mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
     mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
   }
   #pill::after{
     bottom:calc(-1 * var(--fillet));
-    background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
+    background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
     -webkit-mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
     mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
   }
@@ -139,10 +138,10 @@
      arc uses the same fill as the pill. */
 
   /* Left: the right-hand layout mirrored. */
-  body[data-edge="left"] #pill{right:auto;left:0;border-radius:0 20px 20px 0;border-right:1px solid var(--stroke);border-left:none}
+  body[data-edge="left"] #pill{right:auto;left:0;border-radius:0 20px 20px 0;border:none}
   body[data-edge="left"] #pill::before,body[data-edge="left"] #pill::after{right:auto;left:0}
-  body[data-edge="left"] #pill::before{background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="left"] #pill::after{background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="left"] #pill::before{background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="left"] #pill::after{background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
   body[data-edge="left"] #card{left:100px;right:10px;margin-left:0;margin-right:auto}
   body[data-edge="left"] #tail{right:auto;left:69px;clip-path:path('M32 0C32 9 13.44 13.68 0 18C13.44 22.32 32 27 32 36Z')}
 
@@ -154,12 +153,12 @@
   }
   body[data-edge="top"] #pill::before,body[data-edge="top"] #pill::after,
   body[data-edge="bottom"] #pill::before,body[data-edge="bottom"] #pill::after{right:auto;top:auto;bottom:auto}
-  body[data-edge="top"] #pill{top:0;border-radius:0 0 20px 20px;border-top:none}
-  body[data-edge="top"] #pill::before{top:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="top"] #pill::after{top:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="bottom"] #pill{bottom:0;border-radius:20px 20px 0 0;border-bottom:none}
-  body[data-edge="bottom"] #pill::before{bottom:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="bottom"] #pill::after{bottom:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), var(--stroke) calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="top"] #pill{top:0;border-radius:0 0 20px 20px;border:none}
+  body[data-edge="top"] #pill::before{top:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="top"] #pill::after{top:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="bottom"] #pill{bottom:0;border-radius:20px 20px 0 0;border:none}
+  body[data-edge="bottom"] #pill::before{bottom:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="bottom"] #pill::after{bottom:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
   /* A fixed width here, not the fluid one the upright edges use: `placeCard` measures the card to
      centre it, and a shrink-to-fit width would change as it moves. 246 is the upstream cap either way. */
   body[data-edge="top"] #card,body[data-edge="bottom"] #card{
@@ -180,9 +179,8 @@
   .handle.hover{cursor:pointer}
   .handle > *{position:absolute;left:50%;top:50%;pointer-events:none;transition:opacity .2s,transform .36s cubic-bezier(.34,1.3,.64,1)}
   .h-rest{width:72px;height:72px;margin:-36px 0 0 -36px;overflow:visible;transform:rotate(var(--arc)) scale(1)}
-  .h-rest .h-stroke{stroke:var(--stroke)}
-  .h-rest .h-fill{stroke:var(--pill)}
-  .h-disc{width:46.6px;height:46.6px;margin:-23.3px 0 0 -23.3px;border-radius:50%;background:var(--pill);border:1px solid var(--stroke);opacity:0;transform:scale(1.1)}
+  .h-rest .h-stroke,.h-rest .h-fill{stroke:var(--pill)}
+  .h-disc{width:46.6px;height:46.6px;margin:-23.3px 0 0 -23.3px;border-radius:50%;background:var(--pill);border:none;opacity:0;transform:scale(1.1)}
   .h-glyph{width:21px;height:21px;margin:-10.5px 0 0 -10.5px;fill:var(--ink);opacity:0;
     transform:rotate(calc(var(--spins,0) * 360deg - 60deg)) scale(.5);transition:opacity .2s,transform .55s cubic-bezier(.34,1.2,.64,1)}
   .handle.hover .h-rest{opacity:0;transform:rotate(var(--arc)) scale(.86)}

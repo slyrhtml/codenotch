@@ -16,8 +16,9 @@ pub fn snap_scale(scale: f64) -> f64 {
     }
 }
 
-/// The Mac custom slider: 75 %–150 % of the designed size, continuous.
-pub const SCALE_MIN: f64 = 0.75;
+/// Custom slider: 50 %–150 % of the designed size, continuous. The floor is
+/// below the Mac's 75 % so a Windows taskbar can keep a much smaller dock.
+pub const SCALE_MIN: f64 = 0.5;
 pub const SCALE_MAX: f64 = 1.5;
 
 pub fn clamp_scale(scale: f64) -> f64 {
@@ -64,7 +65,7 @@ pub struct Config {
     /// name no longer attached, means the primary monitor — so unplugging a screen cannot strand it.
     #[serde(default)]
     pub notch_monitor: Option<String>,
-    /// Notch size as a multiple of the designed size (0.75–1.5). The whole notch scales: the
+    /// Notch size as a multiple of the designed size (0.5–1.5). The whole notch scales: the
     /// window grows and its WebView zooms, so the rings, text and hover card keep their proportions.
     #[serde(default = "default_scale")]
     pub scale: f64,
@@ -330,8 +331,9 @@ mod tests {
     }
 
     #[test]
-    fn custom_scale_stays_between_three_quarters_and_one_and_a_half() {
-        assert_eq!(clamp_scale(0.4), 0.75);
+    fn custom_scale_stays_between_half_and_one_and_a_half() {
+        assert_eq!(clamp_scale(0.3), 0.5);
+        assert_eq!(clamp_scale(0.55), 0.55);
         assert_eq!(clamp_scale(1.1), 1.1);
         assert_eq!(clamp_scale(3.0), 1.5);
     }
