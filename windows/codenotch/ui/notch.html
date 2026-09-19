@@ -9,53 +9,33 @@
   body{font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink,#fff)}
   #root{position:relative;width:100%;height:100%;
     --pill:#000;--card:#0a0a0a;--ink:#fff;--track:#303030;--stroke:#2e2e2e;--muted:#808080}
-  #root.surface-darkGlass #pill,#root.surface-darkGlass #card,#root.surface-darkGlass #tail,#root.surface-darkGlass .h-disc,
-  #root.surface-glass #pill,#root.surface-glass #card,#root.surface-glass #tail,#root.surface-glass .h-disc,
-  #root.surface-system #pill,#root.surface-system #card,#root.surface-system #tail,#root.surface-system .h-disc{
-    backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15)}
-  #root.surface-darkGlass #pill::before,#root.surface-darkGlass #pill::after,
-  #root.surface-glass #pill::before,#root.surface-glass #pill::after,
-  #root.surface-system #pill::before,#root.surface-system #pill::after{
+  #root.surface-darkGlass #card,#root.surface-darkGlass #tail,#root.surface-darkGlass .h-disc,
+  #root.surface-glass #card,#root.surface-glass #tail,#root.surface-glass .h-disc,
+  #root.surface-system #card,#root.surface-system #tail,#root.surface-system .h-disc{
     backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15)}
   #root.surface-darkGlass{--pill:rgba(0,0,0,.52);--card:rgba(10,10,10,.64)}
   #root.surface-glass,#root.surface-system{--pill:rgba(0,0,0,.52);--card:rgba(10,10,10,.64)}
   #root.surface-glass.light,#root.surface-system.light{--pill:rgba(242,242,244,.78);--card:rgba(255,255,255,.82);--ink:#1d1d1f;--track:#c8c8cc;--stroke:#d0d0d4;--muted:#6b6b6b}
 
-  /* The pill on the right edge */
-  #pill{
+  /* One welded notch: the SVG chrome is the body plus both flares, so a corner cannot detach. */
+  #notch{
     position:absolute;right:0;top:50%;transform:translateY(-50%);
-    width:70px;padding:18px 0;background:var(--pill);
-    border-radius:20px 0 0 20px;
-    border:none;
-    box-shadow:none;
+    overflow:visible;
+    --fillet:38.7px;--corner:20px;
+  }
+  #chrome{position:absolute;right:0;top:calc(-1 * var(--fillet));pointer-events:none;display:block;overflow:visible}
+  #chrome path{fill:var(--pill)}
+  #pill{
+    position:relative;
+    width:70px;padding:18px 0;background:transparent;
+    border:none;box-shadow:none;
     display:flex;flex-direction:column;align-items:center;gap:14px;cursor:pointer;
   }
-  /* Fillets: the concave arcs between the pill's top/bottom and the screen edge (the inverse rounded
-     corner in the upstream design frame). An R×R black square hugs the edge and a radial gradient
-     punches out the circle of radius R centred on its outer corner; what remains is the arc, filled
-     with the same colour as the pill so the two read as one shape. */
-  #pill::before,#pill::after{
-    content:"";position:absolute;right:0;width:var(--fillet);height:var(--fillet);pointer-events:none;
-  }
-  /* The Mac's flare radius (38.7 pt against the same 70 pt body), so the settings orb that nests in
-     this pocket can be the Mac's own size */
-  #pill{--fillet:38.7px}
-  #pill::before{
-    top:calc(-1 * var(--fillet)); /* covers the 1 px stroke along the pill's top edge so there is no seam */
-    background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
-    -webkit-mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
-    mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
-  }
-  #pill::after{
-    bottom:calc(-1 * var(--fillet));
-    background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));
-    -webkit-mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
-    mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
-  }
-  .cell{display:flex;flex-direction:column;align-items:center;gap:6px;animation:cell-in .34s cubic-bezier(.22,1,.36,1)}
-  @keyframes cell-in{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:6px;animation:cell-in .42s cubic-bezier(.22,1,.36,1)}
+  @keyframes cell-in{from{opacity:0;transform:scale(.82) translateY(8px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion: reduce){.cell{animation:none}}
-  .ringwrap{position:relative;width:56px;height:56px;transition:transform .3s cubic-bezier(.34,1.4,.64,1)}
+  .ringwrap{position:relative;width:56px;height:56px;transition:transform .36s cubic-bezier(.22,1.15,.36,1)}
+  .cell.active .ringwrap:not(.pressed){transform:scale(1.06)}
   .ringwrap.pressed{transform:scale(.93)}
   .ringwrap > svg.ring,.ringwrap > svg.reading,.ringwrap > svg.activity{position:absolute;inset:0;overflow:visible} /* pins only the ring itself; an inline logo svg must not match this or it ends up in the top-left corner */
   .glyph{
@@ -88,29 +68,36 @@
   /* Windows' Animation effects switch: a still arc and a solid ring, as on the Mac under Reduce Motion */
   @media (prefers-reduced-motion: reduce){.arc-spin,.arc-pulse{animation:none}.ringwrap{transition:none}}
 
-  /* Hover card, shown to the left of the pill */
+  /* Hover card, shown beside the hovered ring. Mac unfold/glide: spring in, ease out. */
   #card{
-    position:absolute;left:10px;right:100px;top:50%;transform:translateY(-50%);
-    /* Anchored on both sides = fluid width: whatever the WebView's real logical width, the card cannot
-       extend past the window's left edge (a fixed max-width got clipped when the DPI disagreed).
-       The 246 cap matches the upstream spec. */
+    --out-x:16px;--out-y:0px;
+    position:absolute;left:10px;right:84px;top:50%;
     max-width:246px;margin-left:auto;background:var(--card);border-radius:16px;padding:16px;
     overflow-wrap:anywhere;min-width:0;
-    /* 100% / zoom so a larger hover card still fits the extra window room without clipping */
     max-height:calc(100% / var(--card-zoom, 1) - 16px);overflow:hidden;
-    display:none;
+    display:block;visibility:hidden;opacity:0;pointer-events:none;
+    transform:translate(var(--out-x), var(--out-y));
+    transition:opacity .18s ease-out,transform .18s ease-out,visibility 0s linear .18s,top .5s cubic-bezier(.22,1,.36,1),left .5s cubic-bezier(.22,1,.36,1);
   }
-  #card.show{display:block}
+  #card.show{
+    visibility:visible;opacity:1;pointer-events:auto;
+    transform:none;
+    transition:opacity .42s cubic-bezier(.22,1,.36,1),transform .42s cubic-bezier(.22,1,.36,1),visibility 0s,top .5s cubic-bezier(.22,1,.36,1),left .5s cubic-bezier(.22,1,.36,1);
+  }
   #card,#tail{zoom:var(--card-zoom,1)}
-  /* The tail, its point on the hovered ring: the Mac's curved wedge (TooltipTail), whose shoulders
-     leave the card tangent to its edge so the two read as one shape. An element of its own rather
-     than ::after, so the card's overflow cannot clip it and it can be reported as hot. It spans the
-     whole gap, its tip tucked 1 px under the pill's edge so the two meet. */
   #tail{
-    position:absolute;right:69px;width:32px;height:36px;background:var(--card);display:none;
-    clip-path:path('M0 0C0 9 18.56 13.68 32 18C18.56 22.32 0 27 0 36Z');
+    position:absolute;right:69px;width:16px;height:36px;background:var(--card);
+    clip-path:path('M0 0C0 9 9.28 13.68 16 18C9.28 22.32 0 27 0 36Z');
+    visibility:hidden;opacity:0;pointer-events:none;
+    transition:opacity .18s ease-out,visibility 0s linear .18s;
   }
-  #card.show + #tail{display:block}
+  #card.show + #tail{
+    visibility:visible;opacity:1;pointer-events:auto;
+    transition:opacity .42s cubic-bezier(.22,1,.36,1),visibility 0s;
+  }
+  @media (prefers-reduced-motion: reduce){
+    #card,#tail,#card.show,#card.show + #tail{transition:none}
+  }
   .c-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
   .c-title{font-size:14px;font-weight:700}
   .c-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
@@ -139,37 +126,30 @@
      R×R square *diagonally opposite* the corner where the pill meets the screen, so the remaining
      arc uses the same fill as the pill. */
 
-  /* Left: the right-hand layout mirrored. */
-  body[data-edge="left"] #pill{right:auto;left:0;border-radius:0 20px 20px 0;border:none}
-  body[data-edge="left"] #pill::before,body[data-edge="left"] #pill::after{right:auto;left:0}
-  body[data-edge="left"] #pill::before{background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="left"] #pill::after{background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="left"] #card{left:100px;right:10px;margin-left:0;margin-right:auto}
-  body[data-edge="left"] #tail{right:auto;left:69px;clip-path:path('M32 0C32 9 13.44 13.68 0 18C13.44 22.32 32 27 32 36Z')}
+  body[data-edge="left"] #notch{right:auto;left:0}
+  body[data-edge="left"] #chrome{right:auto;left:0}
+  body[data-edge="left"] #card{left:84px;right:10px;margin-left:0;margin-right:auto;--out-x:-16px;--out-y:0px}
+  body[data-edge="left"] #tail{right:auto;left:69px;clip-path:path('M16 0C16 9 6.72 13.68 0 18C6.72 22.32 16 27 16 36Z')}
 
-  /* Top and bottom: the pill lies flat, so it is a row and its thickness comes from the cells rather
-     than a fixed 70 px column. The card is centred under (or over) the hovered ring by `placeCard`. */
-  body[data-edge="top"] #pill,body[data-edge="bottom"] #pill{
+  body[data-edge="top"] #notch,body[data-edge="bottom"] #notch{
     right:auto;left:50%;top:auto;transform:translateX(-50%);
+  }
+  body[data-edge="top"] #notch{top:0}
+  body[data-edge="bottom"] #notch{bottom:0}
+  body[data-edge="top"] #pill,body[data-edge="bottom"] #pill{
     flex-direction:row;width:auto;height:auto;padding:12px 18px;
   }
-  body[data-edge="top"] #pill::before,body[data-edge="top"] #pill::after,
-  body[data-edge="bottom"] #pill::before,body[data-edge="bottom"] #pill::after{right:auto;top:auto;bottom:auto}
-  body[data-edge="top"] #pill{top:0;border-radius:0 0 20px 20px;border:none}
-  body[data-edge="top"] #pill::before{top:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="top"] #pill::after{top:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="bottom"] #pill{bottom:0;border-radius:20px 20px 0 0;border:none}
-  body[data-edge="bottom"] #pill::before{bottom:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="bottom"] #pill::after{bottom:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), var(--fillet-fill, var(--pill)) calc(var(--fillet) + 0.5px));-webkit-mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));mask-image:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  /* A fixed width here, not the fluid one the upright edges use: `placeCard` measures the card to
-     centre it, and a shrink-to-fit width would change as it moves. 246 is the upstream cap either way. */
+  body[data-edge="top"] #chrome{top:0;right:auto;left:calc(-1 * var(--fillet))}
+  body[data-edge="bottom"] #chrome{top:auto;bottom:0;right:auto;left:calc(-1 * var(--fillet))}
   body[data-edge="top"] #card,body[data-edge="bottom"] #card{
-    left:8px;right:auto;top:0;transform:none;margin-left:0;
-    width:246px;max-height:calc(100% - 150px);
+    left:8px;right:auto;top:0;margin-left:0;
+    width:246px;max-height:calc(100% / var(--card-zoom, 1) - 150px);
   }
-  body[data-edge="top"] #tail,body[data-edge="bottom"] #tail{right:auto;width:36px;height:32px}
-  body[data-edge="top"] #tail{clip-path:path('M0 32C9 32 13.68 13.44 18 0C22.32 13.44 27 32 36 32Z')}
-  body[data-edge="bottom"] #tail{clip-path:path('M0 0C9 0 13.68 18.56 18 32C22.32 18.56 27 0 36 0Z')}
+  body[data-edge="top"] #card{--out-x:0px;--out-y:-14px}
+  body[data-edge="bottom"] #card{--out-x:0px;--out-y:14px}
+  body[data-edge="top"] #tail,body[data-edge="bottom"] #tail{right:auto;width:36px;height:16px}
+  body[data-edge="top"] #tail{clip-path:path('M0 16C9 16 13.68 6.72 18 0C22.32 6.72 27 16 36 16Z')}
+  body[data-edge="bottom"] #tail{clip-path:path('M0 0C9 0 13.68 9.28 18 16C22.32 9.28 27 0 36 0Z')}
 
   /* The two handles, one off each end of the pill, as on the Mac (SettingsOrb and MoveHandle):
      settings past the far fillet, move past the near one. At rest each is a quarter arc tucked into
@@ -223,7 +203,10 @@
     <div class="h-disc"></div>
     <svg class="h-glyph" viewBox="0 0 12 12" aria-hidden="true"><path fill-rule="evenodd" d="M5.1.6h1.8l.3 1.5 1.1.5 1.3-.8 1.3 1.3-.8 1.3.5 1.1 1.5.3v1.8l-1.5.3-.5 1.1.8 1.3-1.3 1.3-1.3-.8-1.1.5-.3 1.5H5.1l-.3-1.5-1.1-.5-1.3.8-1.3-1.3.8-1.3-.5-1.1L.6 6.9V5.1l1.5-.3.5-1.1-.8-1.3 1.3-1.3 1.3.8 1.1-.5zM6 4.1a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/></svg>
   </div>
-  <div id="pill"></div><!-- one .cell per provider, stacked vertically (upstream: data-driven, the same layout for 1–5 cells) -->
+  <div id="notch">
+    <svg id="chrome" aria-hidden="true"><path></path></svg>
+    <div id="pill"></div><!-- one .cell per provider, stacked vertically (upstream: data-driven, the same layout for 1–5 cells) -->
+  </div>
   <div id="notice"></div>
 </div>
 <script>
@@ -348,6 +331,7 @@ function applyEdge(e){
   document.body.dataset.edge=next;
   // The window changes shape with the edge, and so does the width the zoom correction measures against
   reportDpr();
+  if(typeof paintChrome==='function') paintChrome();
   // The pill changes shape, so both the hot rectangles and the card's anchor have to be measured again
   if(card&&card.classList.contains('show')) placeCard();
   reportHot();
@@ -832,6 +816,41 @@ function svgArc(r,frac,color,width,extra=''){
     transform="rotate(-90 28 28)" ${extra}/>`;
 }
 
+function chromePath(edge,w,h,R,C){
+  if(edge==='left'){
+    const H=h+2*R;
+    return `M0,0A${R},${R} 0 0 0 ${R},${R}L${w-C},${R}A${C},${C} 0 0 0 ${w},${R+C}L${w},${R+h-C}A${C},${C} 0 0 0 ${w-C},${R+h}L${R},${R+h}A${R},${R} 0 0 0 0,${H}Z`;
+  }
+  if(edge==='top'){
+    return `M0,0A${R},${R} 0 0 1 ${R},${R}L${R},${h-C}A${C},${C} 0 0 0 ${R+C},${h}L${R+w-C},${h}A${C},${C} 0 0 0 ${R+w},${h-C}L${R+w},${R}A${R},${R} 0 0 1 ${w+2*R},0Z`;
+  }
+  if(edge==='bottom'){
+    return `M0,${h}A${R},${R} 0 0 0 ${R},${h-R}L${R},${C}A${C},${C} 0 0 1 ${R+C},0L${R+w-C},0A${C},${C} 0 0 1 ${R+w},${C}L${R+w},${h-R}A${R},${R} 0 0 0 ${w+2*R},${h}Z`;
+  }
+  const H=h+2*R;
+  return `M${w},0A${R},${R} 0 0 1 ${w-R},${R}L${C},${R}A${C},${C} 0 0 1 0,${R+C}L0,${R+h-C}A${C},${C} 0 0 1 ${C},${R+h}L${w-R},${R+h}A${R},${R} 0 0 1 ${w},${H}Z`;
+}
+function paintChrome(){
+  const svg=document.getElementById('chrome');
+  const path=svg&&svg.querySelector('path');
+  if(!svg||!path||typeof pill==='undefined'||!pill) return;
+  const host=document.getElementById('notch')||pill;
+  const R=parseFloat(getComputedStyle(host).getPropertyValue('--fillet'))||38.7;
+  const C=parseFloat(getComputedStyle(host).getPropertyValue('--corner'))||20;
+  const w=pill.offsetWidth, h=pill.offsetHeight;
+  if(!w||!h) return;
+  const upright=edgeIsVertical();
+  const vw=upright?w:w+2*R, vh=upright?h+2*R:h;
+  svg.setAttribute('viewBox','0 0 '+vw+' '+vh);
+  svg.setAttribute('width',String(vw));
+  svg.setAttribute('height',String(vh));
+  path.setAttribute('d',chromePath(notchEdge,w,h,R,C));
+}
+function markActive(id){
+  if(typeof pill==='undefined'||!pill) return;
+  for(const el of pill.querySelectorAll('.cell')) el.classList.toggle('active', !!id && el.dataset.p===id);
+}
+
 function renderRing(){
   const ps=providers();
   // Rebuild the DOM only when the structure changes (never swap the element under the cursor)
@@ -875,6 +894,7 @@ function renderRing(){
     glyph.classList.toggle('dim', !!(h && h.used>=1));
     wrap.classList.toggle('stale', staleOf(p.snap));
   }
+  paintChrome();
   reportHot(); // a provider appearing or leaving resizes the pill
 }
 
@@ -977,28 +997,24 @@ function placeCard(){
   const cr=cell.getBoundingClientRect();
   // The point sits on the ring, not the cell, which includes the label below it
   const rr=(cell.querySelector('.ringwrap')||cell).getBoundingClientRect();
-  card.style.transform='none';
-  const z=cardZoom();
   if(edgeIsVertical()){
-    const cy=cr.top+cr.height/2;
-    const H=innerHeight, ch=(card.offsetHeight||0)*z;
+    const cy=rr.top+rr.height/2;
+    const H=innerHeight, ch=card.offsetHeight||0;
     let top=Math.round(cy-ch/2); top=Math.max(8+insets[0],Math.min(top,H-insets[2]-ch-8));
     card.style.top=top+'px'; card.style.left='';
-    const ry=rr.top+rr.height/2;
-    const th=(tail.offsetHeight||36)*z, ty=Math.max(top+16+th/2,Math.min(top+ch-16-th/2,ry));
+    const th=tail.offsetHeight||36, ty=Math.max(top+16+th/2,Math.min(top+ch-16-th/2,cy));
     tail.style.top=Math.round(ty-th/2)+'px'; tail.style.left='';
   }else{
     const pr=pill.getBoundingClientRect();
-    const cx=cr.left+cr.width/2;
-    const W=innerWidth, cw=(card.offsetWidth||0)*z, ch=(card.offsetHeight||0)*z;
+    const cx=rr.left+rr.width/2;
+    const W=innerWidth, cw=card.offsetWidth||0, ch=card.offsetHeight||0;
     let left=Math.round(cx-cw/2); left=Math.max(8+insets[3],Math.min(left,W-insets[1]-cw-8));
     card.style.left=left+'px';
-    const rx=rr.left+rr.width/2;
-    const tw=tail.offsetWidth||36, tx=Math.max(left+16+tw/2,Math.min(left+cw-16-tw/2,rx));
+    const tw=tail.offsetWidth||36, tx=Math.max(left+16+tw/2,Math.min(left+cw-16-tw/2,cx));
     tail.style.left=Math.round(tx-tw/2)+'px';
-    // 30 px of clear gap, the same the upright edges leave, with the tail spanning it 1 px under the pill
-    if(notchEdge==='top'){ card.style.top=Math.round(pr.bottom+30)+'px'; tail.style.top=Math.round(pr.bottom-1)+'px'; }
-    else{ card.style.top=Math.round(pr.top-30-ch)+'px'; tail.style.top=Math.round(pr.top-31)+'px'; }
+    const gap=12;
+    if(notchEdge==='top'){ card.style.top=Math.round(pr.bottom+gap)+'px'; tail.style.top=Math.round(pr.bottom-1)+'px'; }
+    else{ card.style.top=Math.round(pr.top-gap-ch)+'px'; tail.style.top=Math.round(pr.top-15)+'px'; }
   }
 }
 
@@ -1007,7 +1023,13 @@ function esc(s){const d=document.createElement('div');d.textContent=s||'';return
 /* Hover: stays expanded while either the pill or the card is under the cursor; collapses after a 250 ms grace period (upstream motion rule) */
 const card=document.getElementById('card'), pill=document.getElementById('pill'), tail=document.getElementById('tail');
 let hideTimer=null;
-function showCard(){clearTimeout(hideTimer);card.classList.add('show');renderCard();armWatchdog();refreshClock();} // show first, then render: placeCard needs offsetHeight
+function showCard(){
+  clearTimeout(hideTimer);
+  renderCard();
+  markActive(hoverId);
+  requestAnimationFrame(()=>{ card.classList.add('show'); armWatchdog(); });
+  refreshClock();
+}
 // Nothing is broadcast when the Windows clock format changes, so ask again each time the card opens
 function refreshClock(){
   invoke('get_state').then(s=>{
@@ -1016,7 +1038,7 @@ function refreshClock(){
     if(card.classList.contains('show')) renderCard();
   }).catch(()=>{});
 }
-function hideCard(){card.classList.remove('show');reportHot();}
+function hideCard(){card.classList.remove('show');markActive(null);reportHot();}
 function scheduleHide(){clearTimeout(hideTimer);hideTimer=setTimeout(hideCard,250);}
 // ===== Diagnostics + geometry =====
 function jslog(m){invoke('log_js',{msg:String(m)}).catch(()=>{});}
@@ -1057,7 +1079,7 @@ function reportDpr(){
 // Not measured yet: the width to measure against depends on the edge, and only Rust knows it. The
 // ask is at the bottom of this file and answers in a round trip; measuring first would zoom a flat
 // window by 520/360 for that moment.
-window.addEventListener('resize',()=>{clearTimeout(window._dprT);window._dprT=setTimeout(()=>{reportDpr();reportHot();},120);});
+window.addEventListener('resize',()=>{clearTimeout(window._dprT);window._dprT=setTimeout(()=>{paintChrome();reportDpr();reportHot();},120);});
 matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener('change',reportDpr);
 
 /* Collapse test: no trust in element-level mouseenter/mouseleave/e.target at all —
@@ -1087,7 +1109,7 @@ document.addEventListener('mousemove',e=>{
   if(hot){
     clearTimeout(hideTimer);
     const id=cellAt(e.clientX,e.clientY);
-    if(id&&id!==hoverId){ hoverId=id; if(card.classList.contains('show')){ renderCard(); armWatchdog(); } }
+    if(id&&id!==hoverId){ hoverId=id; markActive(id); if(card.classList.contains('show')){ renderCard(); armWatchdog(); } }
     if(!card.classList.contains('show')) showCard();
   }
   else if(card.classList.contains('show')){ if(hideLogged++<5) jslog(`mousemove left the hot area -> collapse at ${e.clientX},${e.clientY}`); scheduleHide(); }
@@ -1175,7 +1197,8 @@ function placeHandles(){
   if(!r.width) return false;
   // Measurements come back zoomed when fitZoom has zoomed the page; styles are written unzoomed
   const z=parseFloat(document.documentElement.style.zoom)||1;
-  const R=(parseFloat(getComputedStyle(pill).getPropertyValue('--fillet'))||38.7)*z;
+  const host=document.getElementById('notch')||pill;
+  const R=(parseFloat(getComputedStyle(host).getPropertyValue('--fillet'))||38.7)*z;
   // Each fillet's centre: the corner of its square diagonally opposite the one on the screen edge
   const far=notchEdge==='left'?[r.left+R,r.bottom+R]:notchEdge==='top'?[r.right+R,r.top+R]
     :notchEdge==='bottom'?[r.right+R,r.bottom-R]:[r.right-R,r.bottom+R];
