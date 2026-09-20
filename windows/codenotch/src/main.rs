@@ -44,7 +44,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// and its tail on the left. `fitZoom` in ui/notch.html divides by the same width.
 pub const NOTCH_W: f64 = 440.0;
 /// Hand-bumped build tag, written to run.log at startup so a log can always be matched to the exe that wrote it.
-pub const BUILD: &str = "r34";
+pub const BUILD: &str = "r35";
 pub const NOTCH_H: f64 = 640.0; // Antigravity's two model groups plus Kiro credits need the extra depth; 520 clipped reset copy and used/left
 /// Height of the upright window. Five cells make a 504 px pill; its fillets add 38.7 px at each end
 /// and the settings orb reaches 28.5 px past the far one, so 520 cut both fillets and hid the orb.
@@ -830,7 +830,6 @@ static EXPANDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::
 fn set_hot(
     app: AppHandle,
     rects: Vec<[f64; 4]>,
-    glass_rects: Option<Vec<[f64; 4]>>,
     expanded: bool,
 ) {
     *HOT.lock().unwrap() = rects.clone();
@@ -838,7 +837,7 @@ fn set_hot(
     if expanded {
         antigravity::request_hover_refresh();
     }
-    glass::apply(&app, glass_rects.as_deref().unwrap_or(&[]));
+    glass::apply(&app, &rects);
 }
 
 /// Setting `WS_EX_TRANSPARENT` by hand instead looks like it should work, and does not: it applies
@@ -1427,7 +1426,6 @@ pub fn apply_visibility(app: &AppHandle) {
         let _ = w.show();
         place_notch(app);
         let _ = w.emit("notch_visibility", notch);
-        glass::refresh(app);
     }
     if let Some(t) = app.tray_by_id("main") {
         let _ = t.set_visible(tray_on);
@@ -1857,7 +1855,6 @@ fn main() {
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
-            glass::setup(&handle)?;
             place_notch(&handle);
             tray::setup(&handle)?;
             notchmenu::setup(&handle);
