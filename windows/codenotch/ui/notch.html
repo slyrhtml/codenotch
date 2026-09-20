@@ -9,11 +9,8 @@
   body{font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink,#fff)}
   #root{position:relative;width:100%;height:100%;
     --pill:#000;--card:#0a0a0a;--ink:#fff;--track:#303030;--stroke:#2e2e2e;--muted:#808080}
-  #root.surface-darkGlass #card,#root.surface-darkGlass #tail,#root.surface-darkGlass .h-disc,
-  #root.surface-glass #card,#root.surface-glass #tail,#root.surface-glass .h-disc,
-  #root.surface-system #card,#root.surface-system #tail,#root.surface-system .h-disc,
-  #root.surface-darkGlass #frost,#root.surface-glass #frost,#root.surface-system #frost{
-    backdrop-filter:blur(28px) saturate(1.35);-webkit-backdrop-filter:blur(28px) saturate(1.35)}
+  /* Native DWM supplies the desktop blur only under the visible hot regions. Keeping CSS filters
+     off avoids a second full-window WebView composition pass. */
   #root.surface-darkGlass{--pill:rgba(0,0,0,.52);--card:rgba(10,10,10,.64)}
   #root.surface-glass,#root.surface-system{--pill:rgba(0,0,0,.52);--card:rgba(10,10,10,.64)}
   #root.surface-glass.light,#root.surface-system.light{--pill:rgba(242,242,244,.78);--card:rgba(255,255,255,.82);--ink:#1d1d1f;--track:#c8c8cc;--stroke:#d0d0d4;--muted:#6b6b6b}
@@ -1110,6 +1107,10 @@ function callq(cmd,args){ // invoke with visible failure: any command error is r
 }
 // Hot rectangles are reported in physical pixels (multiplied by this page's real DPR), so the Rust side does no conversion — WebView2's DPR and the window scale can disagree
 function rectOf(el){const r=el.getBoundingClientRect(),k=window.devicePixelRatio||1;return [r.left*k,r.top*k,r.width*k,r.height*k];}
+function unionRect(a,b){
+  const x=Math.min(a[0],b[0]),y=Math.min(a[1],b[1]);
+  return [x,y,Math.max(a[0]+a[2],b[0]+b[2])-x,Math.max(a[1]+a[3],b[1]+b[3])-y];
+}
 function flareRects(){
   const host=document.getElementById('notch');
   if(!host||!pill) return [];
@@ -1129,13 +1130,17 @@ function flareRects(){
 function reportHot(){
   const open=card.classList.contains('show');
   if(autoHide&&!autoOpen){
-    callq('set_hot',{rects:[rectOf(peek)],expanded:false}).catch(()=>{});
+    const tab=rectOf(peek);
+    callq('set_hot',{rects:[tab],glassRects:[tab],expanded:false}).catch(()=>{});
     return;
   }
   const rects=open?[rectOf(pill),rectOf(tail),rectOf(card)]:[rectOf(pill)];
   for(const f of flareRects()) rects.push(f);
   if(placeHandles()){ rects.push(rectOf(orb)); if(showMove) rects.push(rectOf(moveHandle)); }
-  callq('set_hot',{rects,expanded:open||autoOpen}).catch(()=>{});
+  const frost=document.getElementById('frost');
+  const glassRects=[rectOf(frost)];
+  if(open) glassRects.push(unionRect(rectOf(card),rectOf(tail)));
+  callq('set_hot',{rects,glassRects,expanded:open||autoOpen}).catch(()=>{});
 }
 function armWatchdog(){
   requestAnimationFrame(reportHot); // wait one frame so renderCard's new content is laid out before measuring

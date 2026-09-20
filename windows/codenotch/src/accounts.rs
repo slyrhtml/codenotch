@@ -10,6 +10,9 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
 static ROWS_CACHE: Mutex<Option<(Instant, String, Vec<AccountRow>)>> = Mutex::new(None);
+/// Provider discovery touches several config/credential locations. Only one caller may rebuild the
+/// cache; startup pollers otherwise all miss the empty cache and perform the same scan at once.
+static ROWS_BUILD: Mutex<()> = Mutex::new(());
 static LAST_EMIT: Mutex<String> = Mutex::new(String::new());
 const ROWS_TTL: Duration = Duration::from_secs(4);
 
@@ -588,8 +591,21 @@ pub fn rows(app: &AppHandle) -> Vec<AccountRow> {
             return cached.clone();
         }
     }
+    let _build = ROWS_BUILD.lock().unwrap();
+    // A different provider thread may have filled it while this caller waited for ROWS_BUILD.
+    if let Some((at, _, cached)) = ROWS_CACHE.lock().unwrap().as_ref() {
+        if at.elapsed() < ROWS_TTL {
+            return cached.clone();
+        }
+    }
     let built = build_rows(app);
-    let key = serde_json::to_string(&built).unwrap_or_default();
+    // Settings does not display the live percentage. Excluding it from the change key prevents a
+    // complete account-list DOM rebuild every time any provider's usage ticks.
+    let mut stable = built.clone();
+    for row in &mut stable {
+        row.used = None;
+    }
+    let key = serde_json::to_string(&stable).unwrap_or_default();
     *ROWS_CACHE.lock().unwrap() = Some((Instant::now(), key, built.clone()));
     built
 }
