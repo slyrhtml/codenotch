@@ -100,11 +100,10 @@ pub struct Config {
     /// The model family that choice looks at, as the Mac app's "Model data": "gemini" or "3p"
     #[serde(default = "default_antigravity_model")]
     pub antigravity_model: String,
-    /// false = the pill is kept off the screen edge entirely; the tray icon is then the only way in
+    /// false = the pill collapses to a small hover tab and the native window leaves always-on-top
     #[serde(default = "yes")]
     pub notch_visible: bool,
-    /// false = the tray icon is hidden. Refused while the notch is also hidden, because that would
-    /// leave the app running with no way to reach it.
+    /// false = the tray icon is hidden. The edge tab remains available in auto-hide mode.
     #[serde(default = "yes")]
     pub tray_visible: bool,
     /// false = no arc above the notch to carry it by. Nothing is lost: Appearance → Edge moves it too.
@@ -287,11 +286,6 @@ pub fn load() -> Config {
             .iter()
             .map(|p| TraySlot { provider: p.clone() })
             .collect();
-    }
-
-    // Both hidden would leave the app unreachable: no pill, no tray icon, no way to open settings.
-    if !cfg.notch_visible && !cfg.tray_visible {
-        cfg.tray_visible = true;
     }
 
     cfg.scale = clamp_scale(cfg.scale);

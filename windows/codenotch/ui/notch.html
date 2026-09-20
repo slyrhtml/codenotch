@@ -33,6 +33,23 @@
     border:none;box-shadow:none;
     display:flex;flex-direction:column;align-items:center;gap:14px;cursor:pointer;
   }
+  /* Auto-hide leaves one small, friendly target at the saved edge. The full notch glides out of
+     that target on hover; the native side simultaneously drops the window out of topmost z-order. */
+  #peek{
+    position:absolute;right:0;top:50%;width:14px;height:48px;transform:translateY(-50%);
+    border-radius:12px 0 0 12px;background:var(--pill);opacity:0;pointer-events:none;
+    box-shadow:0 0 0 1px rgba(255,255,255,.12) inset,0 4px 18px rgba(0,0,0,.2);
+    transition:opacity .18s ease,transform .42s cubic-bezier(.22,1,.36,1);
+  }
+  #peek::after{content:"";position:absolute;left:4px;top:50%;width:4px;height:18px;margin-top:-9px;
+    border-radius:999px;background:var(--ink);opacity:.62;animation:peek-breathe 2.2s ease-in-out infinite}
+  @keyframes peek-breathe{0%,100%{transform:scaleY(.65);opacity:.38}50%{transform:scaleY(1);opacity:.82}}
+  body.auto-hide #peek{opacity:1;pointer-events:auto}
+  body.auto-hide #notch{opacity:0;pointer-events:none;transform:translateY(-50%) translateX(18px);
+    transition:opacity .16s ease,transform .3s ease}
+  body.auto-hide.auto-open #peek{opacity:.2;transform:translateY(-50%) scale(.82)}
+  body.auto-hide.auto-open #notch{opacity:1;pointer-events:auto;transform:translateY(-50%);
+    transition:opacity .22s ease,transform .42s cubic-bezier(.22,1,.36,1)}
   .cell{display:flex;flex-direction:column;align-items:center;gap:6px;animation:cell-in .42s cubic-bezier(.22,1,.36,1)}
   @keyframes cell-in{from{opacity:0;transform:scale(.82) translateY(8px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion: reduce){.cell{animation:none}}
@@ -131,6 +148,9 @@
      arc uses the same fill as the pill. */
 
   body[data-edge="left"] #notch{right:auto;left:0}
+  body[data-edge="left"] #peek{right:auto;left:0;border-radius:0 12px 12px 0}
+  body.auto-hide[data-edge="left"] #notch{transform:translateY(-50%) translateX(-18px)}
+  body.auto-hide.auto-open[data-edge="left"] #notch{transform:translateY(-50%)}
   body[data-edge="left"] #chrome,body[data-edge="left"] #frost{right:auto;left:0}
   body[data-edge="left"] #card{left:90px;right:16px;margin-left:0;margin-right:auto;--out-x:-16px;--out-y:0px;--origin-x:left;--origin-y:center}
   body[data-edge="left"] #tail{right:auto;left:69px;clip-path:path('M16 0C16 9 6.72 13.68 0 18C6.72 22.32 16 27 16 36Z')}
@@ -140,6 +160,15 @@
   }
   body[data-edge="top"] #notch{top:0}
   body[data-edge="bottom"] #notch{bottom:0}
+  body[data-edge="top"] #peek,body[data-edge="bottom"] #peek{right:auto;left:50%;top:auto;width:48px;height:14px;transform:translateX(-50%)}
+  body[data-edge="top"] #peek{top:0;border-radius:0 0 12px 12px}
+  body[data-edge="bottom"] #peek{bottom:0;border-radius:12px 12px 0 0}
+  body[data-edge="top"] #peek::after,body[data-edge="bottom"] #peek::after{left:50%;top:4px;width:18px;height:4px;margin:-0px 0 0 -9px;animation:peek-breathe-x 2.2s ease-in-out infinite}
+  @keyframes peek-breathe-x{0%,100%{transform:scaleX(.65);opacity:.38}50%{transform:scaleX(1);opacity:.82}}
+  body.auto-hide[data-edge="top"] #notch{transform:translateX(-50%) translateY(-18px)}
+  body.auto-hide[data-edge="bottom"] #notch{transform:translateX(-50%) translateY(18px)}
+  body.auto-hide.auto-open[data-edge="top"] #notch,body.auto-hide.auto-open[data-edge="bottom"] #notch{transform:translateX(-50%)}
+  body.auto-hide.auto-open[data-edge="top"] #peek,body.auto-hide.auto-open[data-edge="bottom"] #peek{transform:translateX(-50%) scale(.82)}
   body[data-edge="top"] #pill,body[data-edge="bottom"] #pill{
     flex-direction:row;width:auto;height:auto;padding:12px 18px;
   }
@@ -181,11 +210,12 @@
   #move{--arc:0deg}
   body[data-edge="left"] #move{--arc:90deg}
   body[data-edge="top"] #move{--arc:270deg}
-  @media (prefers-reduced-motion: reduce){.handle > *{transition:none}}
+  @media (prefers-reduced-motion: reduce){.handle > *,#peek,#notch{transition:none}#peek::after{animation:none}}
 </style>
 </head>
 <body>
 <div id="root">
+  <div id="peek" aria-label="Show Codenotch"></div>
   <div id="card"></div>
   <div id="tail"></div>
   <div id="move" class="handle">
@@ -1033,8 +1063,29 @@ function placeCard(){
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
 
 /* Hover: stays expanded while either the pill or the card is under the cursor; collapses after a 250 ms grace period (upstream motion rule) */
-const card=document.getElementById('card'), pill=document.getElementById('pill'), tail=document.getElementById('tail');
-let hideTimer=null;
+const card=document.getElementById('card'), pill=document.getElementById('pill'), tail=document.getElementById('tail'), peek=document.getElementById('peek');
+let hideTimer=null, autoHide=false, autoOpen=false;
+function setAutoOpen(open){
+  const next=autoHide&&!!open;
+  if(next===autoOpen) return;
+  autoOpen=next;
+  document.body.classList.toggle('auto-open',autoOpen);
+  if(!autoOpen) hideCard();
+  requestAnimationFrame(reportHot);
+}
+function applyAutoHide(hidden){
+  autoHide=!!hidden;
+  if(!autoHide) autoOpen=false;
+  document.body.classList.toggle('auto-hide',autoHide);
+  document.body.classList.toggle('auto-open',autoOpen);
+  if(autoHide) hideCard();
+  requestAnimationFrame(reportHot);
+}
+function scheduleAutoClose(){
+  if(!autoHide||!autoOpen) return;
+  clearTimeout(hideTimer);
+  hideTimer=setTimeout(()=>setAutoOpen(false),300);
+}
 function showCard(){
   clearTimeout(hideTimer);
   renderCard();
@@ -1077,10 +1128,14 @@ function flareRects(){
    when the card opens: a stale pill rectangle is a pill that cannot be clicked. */
 function reportHot(){
   const open=card.classList.contains('show');
+  if(autoHide&&!autoOpen){
+    callq('set_hot',{rects:[rectOf(peek)],expanded:false}).catch(()=>{});
+    return;
+  }
   const rects=open?[rectOf(pill),rectOf(tail),rectOf(card)]:[rectOf(pill)];
   for(const f of flareRects()) rects.push(f);
   if(placeHandles()){ rects.push(rectOf(orb)); if(showMove) rects.push(rectOf(moveHandle)); }
-  callq('set_hot',{rects,expanded:open}).catch(()=>{});
+  callq('set_hot',{rects,expanded:open||autoOpen}).catch(()=>{});
 }
 function armWatchdog(){
   requestAnimationFrame(reportHot); // wait one frame so renderCard's new content is laid out before measuring
@@ -1118,6 +1173,7 @@ function cellAt(x,y){
   return null;
 }
 function pointerInHot(x,y){
+  if(autoHide&&!autoOpen) return inRect(x,y,peek.getBoundingClientRect(),4);
   const p=pill.getBoundingClientRect();
   if(inRect(x,y,p,4))return true;
   if(!card.classList.contains('show'))return false;
@@ -1130,6 +1186,13 @@ let hideLogged=0;
 document.addEventListener('mousemove',e=>{
   if(dragging)return; // no card while dragging
   if(carrying) return; // the notch is in hand; the card would only be in the way
+  if(autoHide&&!autoOpen){
+    if(inRect(e.clientX,e.clientY,peek.getBoundingClientRect(),5)){
+      clearTimeout(hideTimer);
+      setAutoOpen(true);
+    }
+    return;
+  }
   setHovered(onHandle(e.clientX,e.clientY));
   if(hovered){ if(card.classList.contains('show')){ clearTimeout(hideTimer); hideCard(); } return; }
   const hot=pointerInHot(e.clientX,e.clientY);
@@ -1139,12 +1202,16 @@ document.addEventListener('mousemove',e=>{
     if(id&&id!==hoverId){ hoverId=id; markActive(id); if(card.classList.contains('show')){ renderCard(); armWatchdog(); } }
     if(!card.classList.contains('show')) showCard();
   }
-  else if(card.classList.contains('show')){ if(hideLogged++<5) jslog(`mousemove left the hot area -> collapse at ${e.clientX},${e.clientY}`); scheduleHide(); }
+  else if(card.classList.contains('show')){ if(hideLogged++<5) jslog(`mousemove left the hot area -> collapse at ${e.clientX},${e.clientY}`); autoHide?scheduleAutoClose():scheduleHide(); }
+  else if(autoHide) scheduleAutoClose();
 });
 document.addEventListener('mouseout',e=>{ // relatedTarget null = the cursor left the page
-  if(!e.relatedTarget && card.classList.contains('show')){ if(hideLogged++<5) jslog('mouseout left the page -> collapse'); scheduleHide(); }
+  if(!e.relatedTarget && (card.classList.contains('show')||autoOpen)){
+    if(hideLogged++<5) jslog('mouseout left the page -> collapse');
+    autoHide?scheduleAutoClose():scheduleHide();
+  }
 });
-listen('pointer_left',()=>{clearTimeout(hideTimer);hideCard();}).catch(()=>{});
+listen('pointer_left',()=>{clearTimeout(hideTimer);autoHide?setAutoOpen(false):hideCard();}).catch(()=>{});
 // Card content changes change its height -> report the hot rectangles again
 listen('usage',()=>{if(card.classList.contains('show'))armWatchdog();}).catch(()=>{});
 listen('state',()=>{if(card.classList.contains('show'))armWatchdog();}).catch(()=>{});
@@ -1284,6 +1351,9 @@ moveHandle.addEventListener('mousedown',e=>{
 listen('move_end',()=>{ carrying=false; moveHandle.classList.remove('armed'); setHovered(null); reportHot(); }).catch(()=>{});
 listen('move_handle',e=>{ showMove=e.payload!==false; reportHot(); }).catch(()=>{});
 invoke('get_move_handle').then(v=>{ showMove=v!==false; reportHot(); }).catch(()=>{});
+// Settings' Hide choice is an auto-hide mode: retain only the edge tab until it is hovered.
+listen('notch_visibility',e=>applyAutoHide(e.payload===false)).catch(()=>{});
+invoke('get_ui_flags').then(v=>applyAutoHide(!!v&&v.notch_visible===false)).catch(()=>{});
 
 listen('usage',e=>{usage=e.payload||usage;settle('claude');renderRing();if(card.classList.contains('show'))renderCard();})
   .catch(e=>notice('listen(usage) failed: '+e));

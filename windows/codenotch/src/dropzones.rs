@@ -79,6 +79,9 @@ pub fn hide(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(LABEL) {
         let _ = w.destroy();
     }
+    // Carrying temporarily raises the notch over the drop-zone overlay. Restore the user's
+    // always-on-top choice as soon as the overlay is gone.
+    crate::apply_visibility(app);
 }
 
 /// What the page asks for when it loads, in case it started listening after the first push.

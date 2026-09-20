@@ -1147,16 +1147,12 @@ accountsPane.addEventListener('change', e => {
     .catch(err => { renderAccounts(); strip('set_antigravity_prefs failed: ' + errText(err)); });
 });
 
-/* ---- Appearance: Show, and App icon -------------------------------------
-   Two choices, one command. Hiding both would leave nothing to click, so Rust keeps the tray icon
-   whenever the notch is hidden, and its answer says what was actually stored. */
+/* ---- Appearance: Show, and App icon ------------------------------------- */
 const SHOW_WHY = 'The notch stays open with every reading visible.';
-const HIDE_WHY = 'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; Codenotch keeps counting your usage either way.';
+const HIDE_WHY = 'The notch becomes a small animated tab on its current edge. Hover the tab to open it; in this mode it does not stay always on top.';
 const TRAY_WHY = 'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits Codenotch.';
 const NO_TRAY_WHY = 'No icon in the system tray. Open Codenotch again from the Start menu to bring these settings back.';
-const HELD_ON = 'Held on: the notch is hidden, so this icon is the only way left to reach Codenotch. Switch the notch back on first if you want to hide it.';
-const KEPT_ON = 'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit Codenotch, so Codenotch will not let both of them be switched off at the same time.';
-let flags = { notch:true, tray:true }, flagsBusy = false, flagsCorrected = false;
+let flags = { notch:true, tray:true }, flagsBusy = false;
 
 function readFlags(v){
   const nv = v && (v.notch_visible !== undefined ? v.notch_visible : v.notchVisible);
@@ -1173,13 +1169,12 @@ function drawSeg(id, value, disabled){
 }
 function renderFlags(){
   drawSeg('seg-show', flags.notch ? 'show' : 'hide');
-  drawSeg('seg-tray', flags.tray ? 'tray' : 'none', flags.notch ? [] : ['none']);
+  drawSeg('seg-tray', flags.tray ? 'tray' : 'none');
   document.getElementById('cap-show').textContent = flags.notch ? ui(SHOW_WHY, SHOW_WHY) : ui(HIDE_WHY, HIDE_WHY);
-  const trayWhy = !flags.notch ? HELD_ON : flags.tray ? TRAY_WHY : NO_TRAY_WHY;
+  const trayWhy = flags.tray ? TRAY_WHY : NO_TRAY_WHY;
   document.getElementById('cap-tray').textContent = ui(trayWhy, trayWhy);
   const fix = document.getElementById('flags-fix');
-  fix.hidden = !flagsCorrected;
-  fix.textContent = ui(KEPT_ON, KEPT_ON);
+  fix.hidden = true;
 }
 function saveFlags(wantNotch, wantTray){
   if(flagsBusy) return;
@@ -1190,7 +1185,6 @@ function saveFlags(wantNotch, wantTray){
   invoke('set_ui_flags', { notchVisible: wantNotch, trayVisible: wantTray })
     .then(v => {
       flags = readFlags(v);
-      flagsCorrected = flags.notch !== asked.notch || flags.tray !== asked.tray;
       toast();
     })
     .catch(e => strip('set_ui_flags failed: ' + errText(e)))

@@ -44,7 +44,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// and its tail on the left. `fitZoom` in ui/notch.html divides by the same width.
 pub const NOTCH_W: f64 = 440.0;
 /// Hand-bumped build tag, written to run.log at startup so a log can always be matched to the exe that wrote it.
-pub const BUILD: &str = "r32";
+pub const BUILD: &str = "r33";
 pub const NOTCH_H: f64 = 640.0; // Antigravity's two model groups plus Kiro credits need the extra depth; 520 clipped reset copy and used/left
 /// Height of the upright window. Five cells make a 504 px pill; its fillets add 38.7 px at each end
 /// and the settings orb reaches 28.5 px past the far one, so 520 cut both fillets and hid the orb.
@@ -1386,16 +1386,15 @@ fn get_ui_flags(app: AppHandle) -> UiFlags {
     UiFlags { notch_visible: c.notch_visible, tray_visible: c.tray_visible }
 }
 
-/// Hiding both would leave the app running with nothing to click, so the tray icon is kept
-/// whenever the notch is off. The answer says what was actually stored, so the settings window can
-/// show the corrected state rather than a lie.
+/// `notch_visible = false` is the edge-tab/auto-hide mode.  It deliberately does not hide the
+/// native window: the page reduces itself to a small hover target at the configured edge.
 #[tauri::command]
 fn set_ui_flags(app: AppHandle, notch_visible: bool, tray_visible: bool) -> UiFlags {
     let flags = {
         let st = app.state::<AppState>();
         let mut c = st.cfg.lock().unwrap();
         c.notch_visible = notch_visible;
-        c.tray_visible = if notch_visible { tray_visible } else { true };
+        c.tray_visible = tray_visible;
         config::save(&c);
         UiFlags { notch_visible: c.notch_visible, tray_visible: c.tray_visible }
     };
@@ -1403,7 +1402,8 @@ fn set_ui_flags(app: AppHandle, notch_visible: bool, tray_visible: bool) -> UiFl
     flags
 }
 
-/// Puts the two switches into effect.
+/// Puts the two switches into effect. In auto-hide mode the WebView is a normal-z-order window;
+/// this is important because selecting Hide must also opt out of always-on-top.
 pub fn apply_visibility(app: &AppHandle) {
     let (notch, tray_on) = {
         let st = app.state::<AppState>();
@@ -1411,12 +1411,10 @@ pub fn apply_visibility(app: &AppHandle) {
         (c.notch_visible, c.tray_visible)
     };
     if let Some(w) = app.get_webview_window("notch") {
-        if notch {
-            let _ = w.show();
-            place_notch(app);
-        } else {
-            let _ = w.hide();
-        }
+        let _ = w.set_always_on_top(notch);
+        let _ = w.show();
+        place_notch(app);
+        let _ = w.emit("notch_visibility", notch);
     }
     if let Some(t) = app.tray_by_id("main") {
         let _ = t.set_visible(tray_on);
@@ -1847,13 +1845,11 @@ fn main() {
         .setup(move |app| {
             let handle = app.handle().clone();
             place_notch(&handle);
-            if let Some(w) = handle.get_webview_window("notch") {
-                let _ = w.show();
-            }
             tray::setup(&handle)?;
             notchmenu::setup(&handle);
             start_menu_updater(handle.clone());
-            // Honours the saved switches: a notch hidden last time stays hidden.
+            // Applies z-order before the initially hidden window is shown, so auto-hide never
+            // flashes above other apps during startup.
             apply_visibility(&handle);
             server::start(handle.clone(), port);
             watcher::start(handle.clone());
