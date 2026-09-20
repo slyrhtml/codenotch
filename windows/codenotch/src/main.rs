@@ -35,6 +35,7 @@ mod dropzones;
 mod watcher;
 mod settings_window;
 mod accounts;
+mod glass;
 
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
@@ -823,12 +824,13 @@ static HOT: Mutex<Vec<[f64; 4]>> = Mutex::new(Vec::new());
 static EXPANDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[tauri::command]
-fn set_hot(rects: Vec<[f64; 4]>, expanded: bool) {
-    *HOT.lock().unwrap() = rects;
+fn set_hot(app: AppHandle, rects: Vec<[f64; 4]>, expanded: bool) {
+    *HOT.lock().unwrap() = rects.clone();
     EXPANDED.store(expanded, std::sync::atomic::Ordering::Relaxed);
     if expanded {
         antigravity::request_hover_refresh();
     }
+    glass::apply(&app, &rects);
 }
 
 /// Setting `WS_EX_TRANSPARENT` by hand instead looks like it should work, and does not: it applies
@@ -1343,6 +1345,7 @@ fn set_appearance(app: AppHandle, accent_color: String, surface_style: String) -
         appearance_of(&c)
     };
     let _ = app.emit("appearance", &look);
+    glass::refresh(&app);
     look
 }
 

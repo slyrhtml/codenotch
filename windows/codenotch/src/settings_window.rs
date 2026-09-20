@@ -86,7 +86,7 @@ pub fn open_author_page() {
     let _ = cmd.spawn();
 }
 
-fn has_mica() -> bool {
+pub(crate) fn has_mica() -> bool {
     reg_string(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuildNumber")
         .and_then(|build| build.trim().parse::<u32>().ok())
         .is_some_and(|build| build >= FIRST_MICA_BUILD)
