@@ -1360,6 +1360,7 @@ fn set_notch_slots(app: AppHandle, slots: Vec<config::TraySlot>) {
         config::save(&c);
         c.notch_slots.clone()
     };
+    crate::accounts::invalidate();
     // The notch is a separate window and draws its own cells, so it has to be told.
     let _ = app.emit("notch_slots", list);
 }

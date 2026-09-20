@@ -69,6 +69,7 @@
   #body::-webkit-scrollbar{display:none}
 
   .sec{font-size:13.5px;font-weight:600;margin:18px 12px 8px}
+  .pane{contain:content}
   .pane > .sec:first-child{margin-top:6px}
   .group{background:var(--group);border:1px solid var(--line);border-radius:10px;box-shadow:inset 0 1px 0 var(--hi)}
   .group + .group{margin-top:14px}
@@ -757,7 +758,9 @@ function setUiLanguage(lang){
   } else if (pick.toLowerCase() === 'zh-hant') {
     pick = 'zh-Hant';
   }
-  uiLang = STATIC_TEXT[pick] ? pick : 'en';
+  const next = STATIC_TEXT[pick] ? pick : 'en';
+  if(next === uiLang && document.documentElement.lang) return;
+  uiLang = next;
   // Chinese and Japanese share code points but not glyph shapes; the lang attribute picks the font
   document.documentElement.lang = uiLang === 'zh' ? 'zh-Hans' : uiLang === 'zh-Hant' ? 'zh-Hant' : uiLang;
   applyStaticUi();
@@ -813,8 +816,13 @@ const TABS = ['accounts', 'appearance', 'general'];
 const TITLES = { accounts:'Accounts', appearance:'Appearance', general:'General' };
 const TAB_KEY = 'codenotch.settings.pane';
 let curTab = TABS[0];
+let accountsDirty = false, accountsTimer = 0;
 function showTab(id, moveFocus){
   if(TABS.indexOf(id) < 0) id = TABS[0];
+  if(id === curTab && document.getElementById('pane-' + id) && !document.getElementById('pane-' + id).hidden){
+    if(moveFocus) document.getElementById('tab-' + id).focus();
+    return;
+  }
   curTab = id;
   for(const t of TABS){
     const on = t === id;
@@ -826,7 +834,10 @@ function showTab(id, moveFocus){
   }
   document.getElementById('title').textContent = ui(TITLES[id], TITLES[id]);
   document.getElementById('body').scrollTop = 0;
-  try { localStorage.setItem(TAB_KEY, id); } catch(e) { /* not remembered, that is all */ }
+  try {
+    if(localStorage.getItem(TAB_KEY) !== id) localStorage.setItem(TAB_KEY, id);
+  } catch(e) { /* not remembered, that is all */ }
+  if(id === 'accounts' && accountsDirty) requestAnimationFrame(renderAccountsNow);
   if(moveFocus) document.getElementById('tab-' + id).focus();
 }
 function savedTab(){
@@ -1011,7 +1022,8 @@ function accountBlock(p, isOn, locked){
   }
   return h + '</div>';
 }
-function renderAccounts(){
+function renderAccountsNow(){
+  accountsDirty = false;
   const list = providerList();
   const onIds = notchOn().map(sl => sl.provider);
   const connected = list.filter(p => onIds.indexOf(p.id) >= 0);
@@ -1021,6 +1033,11 @@ function renderAccounts(){
   document.getElementById('acc-off-wrap').hidden = !off.length;
   document.getElementById('acc-off').innerHTML = off.map(p => accountBlock(p, false, false)).join('')
     + '<div class="item cap">' + esc(ui(NO_RING, NO_RING)) + '</div>';
+}
+function renderAccounts(){
+  if(curTab !== 'accounts'){ accountsDirty = true; return; }
+  clearTimeout(accountsTimer);
+  accountsTimer = setTimeout(renderAccountsNow, 160);
 }
 let accountsPaint = 0;
 function saveNotch(next, animateId){
@@ -1561,7 +1578,6 @@ function renderAll(){
 }
 function boot(){
   showTab(savedTab());
-  setUiLanguage('auto');
   loadLook();
   refreshOptions();
   call('get_notch_slots', undefined, []).then(v => {
@@ -1635,17 +1651,11 @@ function boot(){
       drawAccents();
     });
   } catch(e) { /* live updates stay one-way */ }
-  setTimeout(refreshOptions, 1500);
-  setTimeout(refreshOptions, 6000);
 }
-/* Readings and the accent can change while the window is behind something else; coming back to it is
-   when the old values are wrong, so that is when they are read again. */
-window.addEventListener('focus', () => {
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden) return;
   loadLook();
-  refreshOptions();
-  // A screen can be plugged in, and the pill dragged to another edge, while this window sits behind
-  call('get_notch_edge', undefined, null).then(v => { if(typeof v === 'string') notchEdge = v; renderEdge(); });
-  refreshScreens();
+  if(curTab === 'accounts') refreshOptions();
 });
 boot();
 </script>

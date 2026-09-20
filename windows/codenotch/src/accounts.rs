@@ -5,7 +5,13 @@
 use crate::{provider_label, refresh_provider, snapshot_of, TRAY_PROVIDER_IDS};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Emitter};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Emitter, Manager};
+
+static ROWS_CACHE: Mutex<Option<(Instant, String, Vec<AccountRow>)>> = Mutex::new(None);
+static LAST_EMIT: Mutex<String> = Mutex::new(String::new());
+const ROWS_TTL: Duration = Duration::from_secs(4);
 
 #[derive(Serialize, Clone)]
 pub struct ProviderAccount {
@@ -551,7 +557,7 @@ fn lmstudio_exe() -> Option<PathBuf> {
     app_exe(&["LM Studio", "LM Studio.exe"]).or_else(|| which("lms"))
 }
 
-pub fn rows(app: &AppHandle) -> Vec<AccountRow> {
+fn build_rows(app: &AppHandle) -> Vec<AccountRow> {
     TRAY_PROVIDER_IDS
         .iter()
         .map(|id| {
@@ -576,12 +582,42 @@ pub fn rows(app: &AppHandle) -> Vec<AccountRow> {
         .collect()
 }
 
+pub fn rows(app: &AppHandle) -> Vec<AccountRow> {
+    if let Some((at, _, cached)) = ROWS_CACHE.lock().unwrap().as_ref() {
+        if at.elapsed() < ROWS_TTL {
+            return cached.clone();
+        }
+    }
+    let built = build_rows(app);
+    let key = serde_json::to_string(&built).unwrap_or_default();
+    *ROWS_CACHE.lock().unwrap() = Some((Instant::now(), key, built.clone()));
+    built
+}
+
+pub fn invalidate() {
+    *ROWS_CACHE.lock().unwrap() = None;
+    LAST_EMIT.lock().unwrap().clear();
+}
+
 pub fn emit(app: &AppHandle) {
-    let _ = app.emit("accounts", rows(app));
+    if app.get_webview_window("settings").is_none() {
+        return;
+    }
+    let built = rows(app);
+    let key = ROWS_CACHE.lock().unwrap().as_ref().map(|(_, k, _)| k.clone()).unwrap_or_default();
+    {
+        let mut last = LAST_EMIT.lock().unwrap();
+        if *last == key {
+            return;
+        }
+        *last = key;
+    }
+    let _ = app.emit("accounts", built);
 }
 
 /// Open the owning tool (or its login command), then refresh that provider.
 pub fn sign_in(app: &AppHandle, id: &str) -> bool {
+    invalidate();
     let opened = match id {
         "claude" => {
             if let Some(p) = crate::usage::find_cli() {
